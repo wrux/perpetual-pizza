@@ -3,8 +3,8 @@ import './App.css';
 
 // Loading component
 function Loading() {
-  return <div>
-    <h1>Loadig Pizza</h1>
+  return <div id="loading">
+    <p>Loading Pizza</p>
   </div>
 }
 
@@ -54,7 +54,7 @@ function App() {
   useEffect(() => {
     setTimeout(() => setSpinner(false), 1000)
   }, []);
-  
+
   if (spinner) {
     return <Loading />
   }
