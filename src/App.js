@@ -63,9 +63,7 @@ function App() {
   const [ spinner, setSpinner ] = useState(true);
 
   const pizzaBackground = {
-    backgroundImage: `url(${Pizza})`,
-    backgroundColor: 'red',
-    textColour: 'purple'
+    backgroundImage: `url(${Pizza})`
   }
 
   useEffect(() => {
