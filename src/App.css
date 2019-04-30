@@ -36,11 +36,11 @@ h2 {
 #root {
   width: 100vw;
   height: 100vh;
-  background-color: aliceblue;
+  /* background-color: aliceblue;
   background-image: url('/images/perpetual-pizza.gif');
   background-attachment: fixed;
   background-position: 50% 50%;
-  background-size: cover;
+  background-size: cover; */
 }
 
 #loading {
@@ -84,6 +84,11 @@ h2 {
   -webkit-box-pack: center;
   -ms-flex-pack: center;
   justify-content: center;
+  flex-direction: column;
+  background-color: white;
+  background-attachment: fixed;
+  background-position: 50% 50%;
+  background-size: cover;
 }
 
 #pizza-counter {
@@ -113,4 +118,29 @@ h2 {
   font-size: 10rem;
   font-weight: bold;
   color: white;
+}
+
+#credit {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  width: 100vw;
+  z-index: 75;
+  display: flex;
+  margin-top: auto;
+  flex-direction: row;
+  justify-content: center;
+}
+
+#credit a {
+  display: block;
+  padding: 0.3rem 2rem;
+  font-weight: bold;
+  text-shadow: 3px 3px 0 rgba(0,0,0, 0.25);
+  text-decoration: none;
+  color: white;
+}
+
+#credit a:hover {
+  background-color : rgba(0,0,0, .25);
 }

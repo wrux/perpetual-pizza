@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import Pizza from './pizza.gif';
 import './App.css';
 
 // Loading component
@@ -28,17 +29,17 @@ function useInterval(callback, delay) {
   }, [delay]);
 }
 
-// Display a counter
+// Display the loop counter
 function Counter() {
   let [count, setCount] = useState(0);
 
+  // GIF is 2 seconds long
   useInterval(() => {
-    // Your custom logic here
     setCount(count + 1);
-  }, 1000);
+  }, 2000);
 
   useEffect(() => {
-    document.title = "Perpetual Pizza:" + count
+    document.title = "Perpetual Pizza: " + count
   });
 
   return <div id="pizza-counter">
@@ -47,9 +48,25 @@ function Counter() {
   </div>
 }
 
+// Display the credit
+function Credit() {
+  return (
+    <div id="credit">
+      <a href="https://bloke.blog/" target="_blank" rel="noopener noreferrer" >Bloke</a>
+      <a href="http://sheepfilms.co.uk/" target="_blank" rel="noopener noreferrer" >SheepFilms</a>
+    </div>
+  )
+}
+
 // Pizza App
 function App() {
   const [ spinner, setSpinner ] = useState(true);
+
+  const pizzaBackground = {
+    backgroundImage: `url(${Pizza})`,
+    backgroundColor: 'red',
+    textColour: 'purple'
+  }
 
   useEffect(() => {
     setTimeout(() => setSpinner(false), 1000)
@@ -59,8 +76,9 @@ function App() {
     return <Loading />
   }
   
-  return <div id="app">
+  return <div id="app" style={pizzaBackground}>
     <Counter />
+    <Credit />
   </div>
 }
 
