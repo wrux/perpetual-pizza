@@ -4,7 +4,7 @@ import './App.css';
 
 // Loading component
 function Loading() {
-  return <div id="loading">
+  return <div className="loading">
     <p>Loading Pizza</p>
   </div>
 }
@@ -42,7 +42,7 @@ function Counter() {
     document.title = "Perpetual Pizza: " + count
   });
 
-  return <div id="pizza-counter">
+  return <div className="pizza-counter">
     <p className="title">Pizza watched</p>
     <p className="count">{count}</p>
   </div>
@@ -51,7 +51,7 @@ function Counter() {
 // Display the credit
 function Credit() {
   return (
-    <div id="credit">
+    <div className="credit">
       <a href="https://bloke.blog/" target="_blank" rel="noopener noreferrer" >Bloke</a>
       <a href="http://sheepfilms.co.uk/" target="_blank" rel="noopener noreferrer" >SheepFilms</a>
     </div>
@@ -74,7 +74,7 @@ function App() {
     return <Loading />
   }
   
-  return <div id="app" style={pizzaBackground}>
+  return <div className="app" style={pizzaBackground}>
     <Counter />
     <Credit />
   </div>

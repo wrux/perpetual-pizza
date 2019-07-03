@@ -33,17 +33,12 @@ h2 {
   line-height: 1.2
 }
 
-#root {
+.root {
   width: 100vw;
   height: 100vh;
-  /* background-color: aliceblue;
-  background-image: url('/images/perpetual-pizza.gif');
-  background-attachment: fixed;
-  background-position: 50% 50%;
-  background-size: cover; */
 }
 
-#loading {
+.loading {
   position: fixed;
   top: 0;
   left: 0;
@@ -61,7 +56,7 @@ h2 {
   justify-content: center;
 }
 
-#loading p {
+.loading p {
   margin: 0 0 1rem;
   line-height: 3rem;
   font-size: 2.5rem;
@@ -72,7 +67,7 @@ h2 {
   padding: 3rem;
 }
 
-#app {
+.app {
   width: 100vw;
   height: 100vh;
   display: -webkit-box;
@@ -81,9 +76,9 @@ h2 {
   -webkit-box-align: center;
   -ms-flex-align: center;
   align-items: center;
-  -webkit-box-pack: center;
+  /* -webkit-box-pack: center;
   -ms-flex-pack: center;
-  justify-content: center;
+  justify-content: center; */
   flex-direction: column;
   background-color: white;
   background-attachment: fixed;
@@ -91,36 +86,36 @@ h2 {
   background-size: cover;
 }
 
-#pizza-counter {
+.pizza-counter {
   color: white;
-  font-size: 30px;
   text-align: center;
-  padding: 3rem;
+  padding: 1rem;
 }
 
-#pizza-counter p {
+.pizza-counter p {
   text-shadow: 6px 6px 0 rgba(0,0,0, 0.25);
 }
 
-#pizza-counter .title {
-  margin: 0 0 1rem;
-  line-height: 3rem;
-  font-size: 2.5rem;
+.pizza-counter .title {
+  margin: 0;
+  line-height: 45px;
+  font-size: 25px;
   font-weight: bold;
   color: white;
   text-transform: uppercase;
   letter-spacing: 5px;
 }
 
-#pizza-counter .count {
+.pizza-counter .count {
   margin: 0;
-  line-height: 10rem;  
-  font-size: 10rem;
+  line-height: 72px;  
+  font-size: 64px;
   font-weight: bold;
   color: white;
+  font-family: monospace;
 }
 
-#credit {
+.credit {
   position: absolute;
   bottom: 0;
   left: 0;
@@ -132,7 +127,7 @@ h2 {
   justify-content: center;
 }
 
-#credit a {
+.credit a {
   display: block;
   padding: 0.3rem 2rem;
   font-weight: bold;
@@ -141,6 +136,6 @@ h2 {
   color: white;
 }
 
-#credit a:hover {
+.credit a:hover {
   background-color : rgba(0,0,0, .25);
 }
