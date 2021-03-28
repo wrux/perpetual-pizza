@@ -19,17 +19,17 @@ body {
 }
 
 h1,h2,h3,h4,h5,h6 {
-  margin: 0.6em 0; 
+  margin: 0.6em 0;
   font-weight: normal
 }
 
 h1 {
-  font-size: 2.625em; 
+  font-size: 2.625em;
   line-height: 1.2
 }
 
 h2 {
-  font-size: 1.625em; 
+  font-size: 1.625em;
   line-height: 1.2
 }
 
@@ -76,9 +76,6 @@ h2 {
   -webkit-box-align: center;
   -ms-flex-align: center;
   align-items: center;
-  /* -webkit-box-pack: center;
-  -ms-flex-pack: center;
-  justify-content: center; */
   flex-direction: column;
   background-color: white;
   background-attachment: fixed;
@@ -108,7 +105,7 @@ h2 {
 
 .pizza-counter .count {
   margin: 0;
-  line-height: 72px;  
+  line-height: 72px;
   font-size: 64px;
   font-weight: bold;
   color: white;
