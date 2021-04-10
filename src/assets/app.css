@@ -1,3 +1,9 @@
+:root {
+  /* https://coolors.co/03071e-370617-6a040f-9d0208-d00000-dc2f02-e85d04-f48c06-faa307-ffba08 */
+  --primary: #d00000;
+  --primary-dark: #6a040f;
+}
+
 * {
   box-sizing: border-box;
 }
@@ -10,6 +16,7 @@ body {
   font-style: normal;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
+  background-color: #f48c06;
   color: #fff;
 }
 
@@ -40,15 +47,19 @@ body {
 
 .credit a {
   display: block;
-  padding: 0.3rem 2rem;
+  padding: 0.3em 2em;
+  margin: 1.25em 0.625em;
+  box-shadow: 0 0.125em 0.5em rgba(0, 0, 0, 0.25);
+  background-color: var(--primary);
+  border-radius: 0.25em;
   font-weight: bold;
-  text-shadow: 3px 3px 0 rgba(0,0,0, 0.25);
   text-decoration: none;
   color: white;
   cursor: pointer;
-  transition: background-color 200ms ease-in-out;
+  transition: all 200ms ease-in-out;
 }
 
 .credit a:hover {
-  background-color : rgba(0,0,0, .25);
+  background-color: var(--primary-dark);
+  transform: translateY(-0.125em);
 }

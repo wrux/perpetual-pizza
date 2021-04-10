@@ -20,29 +20,38 @@ class PizzaCounter extends LitElement {
 	static get styles() {
 		return css`
       div {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
         color: white;
         text-align: center;
         padding: 1rem;
-        text-shadow: 6px 6px 0 rgba(0,0,0, 0.25);
 			}
 			
 			h1 {
-        margin: 0;
-        line-height: 45px;
-        font-size: 25px;
-        font-weight: bold;
+        display: inline-block;
+        padding: 0.2em 0.6em;
+        border-radius: 0.4rem;
+				margin-bottom: 0.2em;
         color: white;
+        font-size: clamp(1.333rem, 5vw, 2em);
+        font-weight: bold;
         text-transform: uppercase;
-        letter-spacing: 5px;
+        letter-spacing: 0.2em;
+        background-color: var(--primary);
+        line-height: 1.2;
 			}
 			
 			p {
+        padding: 0.1em 0.3em;
+        border-radius: 0.4rem;
         margin: 0;
-        line-height: 72px;
-        font-size: 64px;
+        line-height: 1;
+        font-size: clamp(2rem, 10vw, 4rem);
         font-weight: bold;
         color: white;
         font-family: monospace;
+				background-color: #E85D04;
 			}
     `;
 	}
