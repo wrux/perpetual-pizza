@@ -7,7 +7,12 @@ class PizzaCounter extends LitElement {
 
 	connectedCallback() {
 		super.connectedCallback()
-		setInterval(() => ++this.count, 3000);
+		setInterval(() => {
+			++this.count;
+			if (this.count % 20 === 0) {
+				plausible('Pizza views', Math.floor(this.count / 20));
+			}
+		}, 3000);
 	}
 
 	render() {
