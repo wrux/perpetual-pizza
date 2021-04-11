@@ -23,22 +23,33 @@
     "lit-element": "^2.4.0",
     "parcel-bundler": "^1.12.5",
     "parcel-plugin-pwa-manifest": "^3.0.10",
+    "parcel-plugin-sw-cache": "^0.3.1",
     "typescript": "^4.2.4"
   },
   "dependencies": {},
+  "cache": {
+    "swDest": "service-worker.js",
+    "globPatterns": ["**/*.{html,js,css,webp,png,mp4}"],
+    "navigateFallback": "/index.html",
+    "templatedURLs": {
+      "/": ["index.html"]
+    }
+  },
   "pwaManifest": {
     "name": "Perpetual Pizza",
     "shortName": "Perpetual Pizza",
     "startURL": "./",
     "theme": "#d00000",
     "generateIconOptions": {
+      "appleTouchIconBG": "#ffffff",
+      "appleTouchIconPadding": 24,
       "baseIcon": "./src/assets/icon.svg",
+      "genFavicons": true,
       "sizes": [
         192,
         384,
         512
-      ],
-      "genFavicons": true
+      ]
     }
   }
 }

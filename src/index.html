@@ -18,6 +18,12 @@
 		<meta name="twitter:image:src" content="/assets/cover.png" />
 		<link rel="stylesheet" href="/assets/app.css" />
 		<script src="/assets/app.ts"></script>
+		<script>
+			if ('serviceWorker' in navigator) {
+				const sw = '/service-worker.js';
+				navigator.serviceWorker.register(sw);
+			}
+		</script>
 		<script async defer data-domain="perpetual.pizza" src="https://plausible.io/js/plausible.js"></script>
 		<script>window.plausible = window.plausible || function() { (window.plausible.q = window.plausible.q || []).push(arguments) }</script>
 		<link rel="shortcut icon" href="/favicon.ico" />
