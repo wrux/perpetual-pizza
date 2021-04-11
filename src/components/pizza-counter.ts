@@ -1,5 +1,8 @@
 import { LitElement, html, customElement, property, css } from 'lit-element';
 
+/**
+ * Pizza counter web component.
+ */
 @customElement('pizza-counter')
 class PizzaCounter extends LitElement {
 	@property()
