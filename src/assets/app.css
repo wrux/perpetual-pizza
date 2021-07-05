@@ -1,7 +1,7 @@
 :root {
-  /* https://coolors.co/03071e-370617-6a040f-9d0208-d00000-dc2f02-e85d04-f48c06-faa307-ffba08 */
-  --primary: #d00000;
-  --primary-dark: #6a040f;
+  --primary-h: 0;
+  --primary-s: 100%;
+  --primary-l: 41%;
 }
 
 * {
@@ -30,36 +30,59 @@ body {
 }
 
 .pizza-counter {
-  position: relative;
+  position: absolute;
+  top: 0;
+  left: 50%;
+  transform: translateX(-50%);
 }
 
 .credit {
+  --background-opacity: 0.5;
+
   position: absolute;
   bottom: 0;
   left: 0;
   width: 100vw;
+  text-align: center;
   z-index: 75;
-  display: flex;
-  margin-top: auto;
-  flex-direction: row;
-  justify-content: center;
+  padding: 0.666em 1.333em 0.6em;
+  font-size: 0.875rem;
+  margin: 0;
+  line-height: 1.333;
+  background-color: hsl(var(--primary-h), var(--primary-s), var(--primary-l), var(--background-opacity));
+  backdrop-filter: blur(8px);
+  transition: background 333ms ease-in-out;
+}
+
+.credit:hover,
+.credit:focus-within {
+  --background-opacity: 1;
 }
 
 .credit a {
-  display: block;
-  padding: 0.3em 2em;
-  margin: 1.25em 0.625em;
-  box-shadow: 0 0.125em 0.5em rgba(0, 0, 0, 0.25);
-  background-color: var(--primary);
-  border-radius: 0.25em;
   font-weight: bold;
-  text-decoration: none;
+  text-decoration: underline;
+  text-underline-position: under;
   color: white;
   cursor: pointer;
   transition: all 200ms ease-in-out;
 }
 
-.credit a:hover {
-  background-color: var(--primary-dark);
-  transform: translateY(-0.125em);
+.credit a:hover,
+.credit a:focus {
+  background-color: white;
+  color: black;
+}
+
+.sr-only {
+	border: 0 !important;
+	clip: rect(1px, 1px, 1px, 1px) !important;
+  clip-path: inset(50%);
+	height: 1px !important;
+	margin: -1px !important;
+	overflow: hidden !important;
+	padding: 0 !important;
+	position: absolute !important;
+	width: 1px !important;
+	white-space: nowrap !important;
 }
