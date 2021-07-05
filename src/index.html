@@ -1,44 +1,90 @@
 <!DOCTYPE html>
 <html lang="en">
-	<head>
-		<meta charset="utf-8" />
-		<meta name="viewport" content="width=device-width, initial-scale=1" />
-		<title>The Never Ending Digital Pizza | Perpetual Pizza</title>
-		<meta name="description" content="Watch the never ending digital pizza spin hypnotize you into ordering a take away." />
-		<meta property="og:url" content="https://perpetual.pizza/" />
-		<meta property="og:title" content="The Never Ending Digital Pizza | Perpetual Pizza" />
-		<meta property="og:image" content="/assets/cover.png" />
-		<meta property="og:site_name" content="Perpetual Pizza" />
-		<meta property="og:description" content="Watch the never ending digital pizza spin hypnotize you into ordering a take away." />
-		<meta name="twitter:card" content="summary_large_image" />
-		<meta name="twitter:site" content="@wrux" />
-		<meta name="twitter:creator" content="@wrux" />
-		<meta name="twitter:title" content="The Never Ending Digital Pizza | Perpetual Pizza" />
-		<meta name="twitter:description" content="Watch the never ending digital pizza spin hypnotize you into ordering a take away." />
-		<meta name="twitter:image:src" content="/assets/cover.png" />
-		<link rel="stylesheet" href="/assets/app.css" />
-		<script src="/assets/app.ts"></script>
-		<script>
-			if ('serviceWorker' in navigator) {
-				const sw = '/service-worker.js';
-				navigator.serviceWorker.register(sw);
-			}
-		</script>
-		<script async defer data-domain="perpetual.pizza" src="https://stats.perpetual.pizza/js/index.js"></script>
-		<script>window.plausible = window.plausible || function() { (window.plausible.q = window.plausible.q || []).push(arguments) }</script>
-		<link rel="shortcut icon" href="/favicon.ico" />
-	</head>
-	<body>
-		<main>
-			<video class="video" width="500" height="312" autoplay muted loop playsinline>
-				<source src="/assets/pizza.webp" type="video/webp" />
-				<source src="/assets/pizza.mp4" type="video/mp4" />
-			</video>
-			<div class="credit">
-				<a href="https://bloke.blog/" target="_blank" rel="noopener noreferrer">Bloke</a>
-				<a href="http://sheepfilms.co.uk/" target="_blank" rel="noopener noreferrer">SheepFilms</a>
-			</div>
-			<pizza-counter class="pizza-counter"></pizza-counter>
-		</main>
-	</body>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>The Never Ending Digital Pizza | Perpetual Pizza</title>
+    <meta
+      name="description"
+      content="Watch the never ending digital pizza spin hypnotize you into ordering a pizza."
+    />
+    <meta property="og:url" content="https://perpetual.pizza/" />
+    <meta
+      property="og:title"
+      content="The Never Ending Digital Pizza | Perpetual Pizza"
+    />
+    <meta property="og:image" content="/assets/cover.png" />
+    <meta property="og:site_name" content="Perpetual Pizza" />
+    <meta
+      property="og:description"
+      content="Watch the never ending digital pizza spin hypnotize you into ordering a take away."
+    />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:site" content="@wrux" />
+    <meta name="twitter:creator" content="@wrux" />
+    <meta
+      name="twitter:title"
+      content="The Never Ending Digital Pizza | Perpetual Pizza"
+    />
+    <meta
+      name="twitter:description"
+      content="Watch the never ending digital pizza spin hypnotize you into ordering a take away."
+    />
+    <meta name="twitter:image:src" content="/assets/cover.png" />
+    <link rel="stylesheet" href="/assets/app.css" />
+    <script src="/assets/app.ts"></script>
+    <script>
+      if ("serviceWorker" in navigator) {
+        const sw = "/service-worker.js";
+        navigator.serviceWorker.register(sw);
+      }
+    </script>
+    <script
+      async
+      defer
+      data-domain="perpetual.pizza"
+      src="https://stats.perpetual.pizza/js/index.js"
+    ></script>
+    <script>
+      window.plausible =
+        window.plausible ||
+        function () {
+          (window.plausible.q = window.plausible.q || []).push(arguments);
+        };
+    </script>
+    <link
+      rel="icon"
+      href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🍕</text></svg>"
+    />
+  </head>
+  <body>
+    <main>
+      <video
+        class="video"
+        width="500"
+        height="312"
+        autoplay
+        muted
+        loop
+        playsinline
+      >
+        <source src="/assets/pizza.webp" type="video/webp" />
+        <source src="/assets/pizza.mp4" type="video/mp4" />
+      </video>
+      <p class="credit">
+        Website by
+        <a href="https://bloke.blog/" target="_blank" rel="noopener noreferrer"
+          >Bloke<span class="sr-only"> (opens in new tab)</span></a
+        >
+        and animation by
+        <a
+          href="http://sheepfilms.co.uk/"
+          target="_blank"
+          rel="noopener noreferrer"
+          >SheepFilms<span class="sr-only"> (opens in new tab)</span></a
+        >.
+      </p>
+      <pizza-counter class="pizza-counter"></pizza-counter>
+    </main>
+  </body>
 </html>
