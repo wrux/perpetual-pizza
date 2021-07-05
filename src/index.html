@@ -33,12 +33,6 @@
     <meta name="twitter:image:src" content="/assets/cover.png" />
     <link rel="stylesheet" href="/assets/app.css" />
     <script src="/assets/app.ts"></script>
-    <script>
-      if ("serviceWorker" in navigator) {
-        const sw = "/service-worker.js";
-        navigator.serviceWorker.register(sw);
-      }
-    </script>
     <script
       async
       defer
@@ -52,17 +46,13 @@
           (window.plausible.q = window.plausible.q || []).push(arguments);
         };
     </script>
-    <link
-      rel="icon"
-      href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🍕</text></svg>"
-    />
+    <link rel="icon" href="/assets/icon.svg" />
   </head>
   <body>
     <main>
       <video
         class="video"
-        width="500"
-        height="312"
+        poster="/assets/cover.png"
         autoplay
         muted
         loop
