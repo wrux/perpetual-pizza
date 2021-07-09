@@ -1,0 +1,11 @@
+<video
+  class="video"
+  poster="/static/pizza/{{ video|default('default') }}/cover.png"
+  autoplay
+  muted
+  loop
+  playsinline
+>
+  <source src="/static/pizza/{{ video|default('default') }}/pizza.webp" type="video/webp" />
+  <source src="/static/pizza/{{ video|default('default') }}/pizza.mp4" type="video/mp4" />
+</video>

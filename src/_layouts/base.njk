@@ -1,0 +1,21 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    {% include 'head.njk' %}
+    {% if site.env %}
+      {% set css %}{% include 'app.compiled.css' %}{% endset %}
+      <style>
+        {{ css | safe }}
+      </style>
+    {% else %}
+      <link rel="stylesheet" href="/static/app.compiled.css" />
+    {% endif %}
+  </head>
+  <body>
+    <main id="content">
+      {{ content|safe }}
+      {% include 'tray.njk' %}
+    </main>
+  </body>
+  <script src="/static/app.bundled.js"></script>
+</html>
