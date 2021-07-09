@@ -7,8 +7,7 @@ pagination:
 permalink: "pizza/{{ pizza.slug }}/"
 ---
 
-{% set video_title = pizza.title %}
-{% set video_vimeo_id = pizza.video %}
+{% set video = pizza.slug %}
 {% include 'video.njk' %}
 
 {% if not pizza.sold %}

@@ -3,6 +3,5 @@ layout: base.njk
 title: The Never Ending Digital Pizza
 ---
 
-{% set video_title = pizzas[0].title %}
-{% set video_vimeo_id = pizzas[0].video %}
+{% set video = pizzas[0].slug %}
 {% include 'video.njk' %}

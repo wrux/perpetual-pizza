@@ -1,10 +1,9 @@
-{% if video_vimeo_id %}
-  <div class="video">
-    <iframe
-      src="https://player.vimeo.com/video/{{ video_vimeo_id }}?badge=0&amp;autopause=0&amp;player_id=0&amp;app_id=58479&amp;background=1"
-      frameborder="0"
-      allow="autoplay; fullscreen"
-      title="{{ video_title|default('Perpetual Pizza') }}"
-    ></iframe>
-  </div>
-{% endif %}
+<video
+  class="video"
+  poster="/static/{{ video|default('ppz01') }}/cover.jpg"
+  autoplay
+  muted loop
+  playsinline
+>
+  <source src="/static/{{ video|default('ppz01') }}/pizza.mp4" type="video/mp4" />
+</video>
