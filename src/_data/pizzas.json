@@ -1,22 +1,9 @@
 [
   {
-    "link": "#",
-    "name": "Cheese",
-    "slug": "cheese"
-  },
-  {
-    "link": "#",
-    "name": "Pineapple",
-    "slug": "pineapple"
-  },
-  {
-    "link": "#",
-    "name": "Pepperoni",
-    "slug": "pepperoni"
-  },
-  {
-    "link": "#",
-    "name": "Mushroom",
-    "slug": "mushroom"
+    "link": "https://bloke.blog/",
+    "title": "PPZ01",
+    "slug": "ppz01",
+    "sold": false,
+    "video": "573085763"
   }
 ]
