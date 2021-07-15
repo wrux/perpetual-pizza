@@ -39,13 +39,6 @@
       data-domain="perpetual.pizza"
       src="https://stats.perpetual.pizza/js/index.js"
     ></script>
-    <script>
-      window.plausible =
-        window.plausible ||
-        function () {
-          (window.plausible.q = window.plausible.q || []).push(arguments);
-        };
-    </script>
     <link rel="icon" href="/assets/icon.svg" />
   </head>
   <body>
@@ -61,20 +54,34 @@
         <source src="/assets/pizza.webp" type="video/webp" />
         <source src="/assets/pizza.mp4" type="video/mp4" />
       </video>
-      <p class="credit">
-        Website by
-        <a href="https://bloke.blog/" target="_blank" rel="noopener noreferrer"
-          >Bloke<span class="sr-only"> (opens in new tab)</span></a
-        >
-        and animation by
-        <a
-          href="http://sheepfilms.co.uk/"
-          target="_blank"
-          rel="noopener noreferrer"
-          >SheepFilms<span class="sr-only"> (opens in new tab)</span></a
-        >.
-      </p>
-      <pizza-counter class="pizza-counter"></pizza-counter>
+      <div class="tray expanded" data-tray>
+        <div class="tray__inner">
+          <button class="toggle button" data-toggle-tray>
+            Pizza Topping
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              aria-hidden="true"
+              class="button__icon"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+            >
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="M5 15l7-7 7 7"
+              />
+            </svg>
+          </button>
+          <div class="tray__content">
+            <a href="#" target="_blank" rel="nofollow noopener">Cheese</a>
+            <a href="#" target="_blank" rel="nofollow noopener">Pepperoni</a>
+            <a href="#" target="_blank" rel="nofollow noopener">Pineapple</a>
+            <a href="#" target="_blank" rel="nofollow noopener">Mushroom</a>
+          </div>
+        </div>
+      </div>
     </main>
   </body>
 </html>
