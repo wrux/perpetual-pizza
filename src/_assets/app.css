@@ -159,9 +159,14 @@ body {
 
 .tray__content a:active,
 .tray__content a:focus,
-.tray__content a:hover,
+.tray__content a:hover {
+  text-decoration: underline solid #fff 3px;
+  text-underline-offset: 2px;
+}
+
 .tray__content a.active {
-  text-decoration: underline;
+  text-decoration: underline solid rgb(208, 0, 0) 3px;
+  text-underline-offset: 2px;
 }
 
 .tray.expanded .tray__content a {
@@ -183,4 +188,12 @@ body {
 
 .tray.expanded .tray__content a:nth-child(4) {
   transition-delay: 700ms;
+}
+
+.tray.expanded .tray__content a:nth-child(5) {
+  transition-delay: 850ms;
+}
+
+.tray.expanded .tray__content a:nth-child(6) {
+  transition-delay: 1000ms;
 }

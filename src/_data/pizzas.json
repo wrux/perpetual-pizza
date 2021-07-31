@@ -1,8 +1,32 @@
 [
   {
-    "link": "https://rarible.com/token/0x60f80121c31a0d46b5279700f9df786054aa5ee5:1131725",
-    "title": "PPZ001",
-    "slug": "ppz001",
-    "sold": false
+    "link": "https://rarible.com/token/0x61372140bdffa1a9b0178821eac900d3f5bb83d2:1",
+    "title": "PPZ01",
+    "slug": "ppz01"
+  },
+  {
+    "link": "https://rarible.com/token/0x61372140bdffa1a9b0178821eac900d3f5bb83d2:2",
+    "title": "PPZ02",
+    "slug": "ppz02"
+  },
+  {
+    "link": "https://rarible.com/token/0x61372140bdffa1a9b0178821eac900d3f5bb83d2:3",
+    "title": "PPZ03",
+    "slug": "ppz03"
+  },
+  {
+    "link": "https://rarible.com/token/0x61372140bdffa1a9b0178821eac900d3f5bb83d2:4",
+    "title": "PPZ04",
+    "slug": "ppz04"
+  },
+  {
+    "link": "https://rarible.com/token/0x61372140bdffa1a9b0178821eac900d3f5bb83d2:5",
+    "title": "PPZ05",
+    "slug": "ppz05"
+  },
+  {
+    "link": "https://rarible.com/token/0x61372140bdffa1a9b0178821eac900d3f5bb83d2:6",
+    "title": "PPZ06",
+    "slug": "ppz06"
   }
 ]

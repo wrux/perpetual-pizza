@@ -9,10 +9,4 @@ module.exports = {
     twitter: '@wrux',
     default_social_image: '/static/default_social_image.jpg',
   },
-  pizzas: {
-    cheese: { link: '#', name: 'Cheese' },
-    pineapple: { link: '#', name: 'Pineapple' },
-    pepperoni: { link: '#', name: 'Pepperoni' },
-    mushroom: { link: '#', name: 'Mushroom' },
-  },
 };
