@@ -3,18 +3,7 @@ layout: base.njk
 title: The Never Ending Digital Pizza
 ---
 
-<a href="https://rarible.com/token/0x60f80121c31a0d46b5279700f9df786054aa5ee5:1131725" rel="nofollow noopener" class="button button--nft">
-  Buy the NFT
-  <svg
-    xmlns="http://www.w3.org/2000/svg"
-    aria-hidden="true"
-    viewBox="-116 0 512 512.001"
-    fill="currentColor"
-  >
-    <path d="M140.281 333.582L0 266.848 140.281 512l140.285-245.152zm-66.418 1.738l66.418 31.598 66.422-31.598-66.422 116.07zm0 0"/>
-    <path d="M275.852 235.46L140.282 0 4.714 235.46l135.566 64.216zM140.282 60.329l77.323 134.297L140.281 158l-77.32 36.625zm0 130.98l79.23 37.532-79.23 37.527-79.227-37.527zm0 0"/>
-  </svg>
-</a>
-
 {% set video = pizzas[0].slug %}
 {% include 'video.njk' %}
+
+{% include 'tray.njk' %}
