@@ -7,7 +7,8 @@ pagination:
 permalink: "{{ pizza.slug }}/"
 ---
 
-{% set video = pizza.slug %}
+{% set videoSlug = pizza.slug %}
+{% set videoId = pizza.videoId %}
 {% include 'video.njk' %}
 
 <a href="{{ pizza.link }}" rel="nofollow noopener" class="button button--nft" target="_blank">

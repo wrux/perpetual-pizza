@@ -3,7 +3,8 @@ layout: base.njk
 title: The Never Ending Digital Pizza
 ---
 
-{% set video = pizzas[0].slug %}
+{% set videoSlug = pizzas[0].slug %}
+{% set videoId = pizzas[0].videoId %}
 {% include 'video.njk' %}
 
 {% include 'tray.njk' %}

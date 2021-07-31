@@ -31,6 +31,7 @@ body {
   pointer-events: none;
   overflow: hidden;
   object-fit: cover;
+  border: none;
 }
 
 .button {
