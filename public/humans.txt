@@ -1,0 +1,5 @@
+Name: Perpetual Pizza
+Site: https://perpetual.pizza/
+Twitter: @wruz
+
+Doctype: HTML5

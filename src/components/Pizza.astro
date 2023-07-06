@@ -1,0 +1,27 @@
+---
+export interface Props {
+  slug?: string;
+}
+
+const { slug = '01' } = Astro.props;
+---
+
+<article>
+  <video poster={`/pizza/${slug}/cover.jpg`} autoplay muted loop playsinline>
+    <source src={`/pizza/${slug}/pizza.mp4`} type="video/mp4" />
+  </video>
+</article>
+
+<style scoped>
+  video {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    z-index: -1;
+    pointer-events: none;
+    overflow: hidden;
+    object-fit: cover;
+  }
+</style>
