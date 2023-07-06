@@ -1,0 +1,17 @@
+---
+import Layout from '../../layouts/Layout.astro';
+import Pizza from '../../components/Pizza.astro';
+import { pizzas } from '../../data/pizzas';
+
+export function getStaticPaths() {
+  return pizzas.map(({ slug }) => ({ params: { slug } }));
+}
+
+const { slug } = Astro.params;
+---
+
+<Layout pizza={slug} title="The Never Ending Digital Pizza">
+  <main>
+    <Pizza slug={slug} />
+  </main>
+</Layout>

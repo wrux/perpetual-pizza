@@ -1,0 +1,186 @@
+---
+import { pizzas } from '../data/pizzas';
+
+export interface Props {
+  pizza?: string;
+}
+
+const { pizza } = Astro.props;
+---
+
+<div class="tray" data-tray>
+  <div class="tray__inner">
+    <button class="toggle button" data-toggle-tray>
+      Pizzas
+      <svg
+        xmlns="http://www.w3.org/2000/svg"
+        aria-hidden="true"
+        class="button__icon"
+        fill="none"
+        viewBox="0 0 24 24"
+        stroke="currentColor"
+      >
+        <path
+          stroke-linecap="round"
+          stroke-linejoin="round"
+          stroke-width="2"
+          d="M5 15l7-7 7 7"></path>
+      </svg>
+    </button>
+    <div class="tray__content">
+      {
+        pizzas.map((item) => (
+          <a
+            href={`/pizza/${item.slug}`}
+            class:list={{
+              active: item.slug === pizza,
+            }}
+          >
+            {item.title}
+          </a>
+        ))
+      }
+    </div>
+  </div>
+</div>
+
+<style scoped>
+  .tray {
+    width: 100vw;
+    height: 100vh;
+  }
+
+  .tray__inner {
+    box-sizing: border-box;
+    position: absolute;
+    bottom: 0;
+    left: 50%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    width: 100vw;
+    max-width: 22rem;
+    padding: 0 2em;
+    transform: translate(-50%, calc(100% - 3.25em));
+    transition: transform 333ms ease-in-out;
+  }
+
+  .tray:before {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    display: block;
+    background-color: rgba(0, 0, 0, 0.25);
+    backdrop-filter: blur(16px);
+    content: '';
+    opacity: 0;
+    transition: opacity 333ms ease-in-out;
+  }
+
+  .tray.expanded .tray__inner {
+    transform: translate(-50%, 0);
+  }
+
+  .tray.expanded:before {
+    opacity: 1;
+  }
+
+  .tray .button__icon {
+    transition: transform 333ms ease-in-out;
+    transition-delay: 333ms;
+  }
+
+  .tray.expanded .button__icon {
+    transform: scaleY(-1);
+  }
+
+  .tray__content {
+    display: flex;
+    flex-direction: column;
+    width: 100%;
+    padding: 1em 1em 2em;
+    max-height: 80vh;
+    overflow-x: auto;
+  }
+
+  .tray__content a {
+    display: block;
+    padding: 0.3em 0.5em;
+    color: #fff;
+    font-weight: bolder;
+    text-align: center;
+    text-decoration: none;
+    text-shadow: 1px 1px 6px rgba(0, 0, 0, 0.25);
+    text-underline-position: under;
+    transform: translateY(1em) scale(1.5);
+    opacity: 0;
+    transition: all 200ms ease-in-out;
+    transition-delay: 333ms;
+  }
+
+  .tray__content a:active,
+  .tray__content a:focus,
+  .tray__content a:hover {
+    text-decoration: underline solid #fff 3px;
+    text-underline-offset: 2px;
+  }
+
+  .tray__content a.active {
+    text-decoration: underline solid rgb(208, 0, 0) 3px;
+    text-underline-offset: 2px;
+  }
+
+  .tray.expanded .tray__content a {
+    transform: translateY(0);
+    opacity: 1;
+  }
+
+  .tray.expanded .tray__content a:nth-child(1) {
+    transition-delay: 250ms;
+  }
+
+  .tray.expanded .tray__content a:nth-child(2) {
+    transition-delay: 400ms;
+  }
+
+  .tray.expanded .tray__content a:nth-child(3) {
+    transition-delay: 550ms;
+  }
+
+  .tray.expanded .tray__content a:nth-child(4) {
+    transition-delay: 700ms;
+  }
+
+  .tray.expanded .tray__content a:nth-child(5) {
+    transition-delay: 850ms;
+  }
+
+  .tray.expanded .tray__content a:nth-child(6) {
+    transition-delay: 1000ms;
+  }
+</style>
+
+<script is:inline>
+  document.addEventListener('DOMContentLoaded', function () {
+    const tray = document.querySelector('[data-tray]');
+    if (!tray) {
+      return;
+    }
+
+    tray.addEventListener('click', ({ target }) => {
+      if (target.hasAttribute('data-tray')) {
+        tray.classList.remove('expanded');
+      }
+    });
+
+    document
+      .querySelectorAll('[data-toggle-tray]')
+      .forEach((element) =>
+        element.addEventListener('click', () =>
+          tray.classList.toggle('expanded'),
+        ),
+      );
+  });
+</script>

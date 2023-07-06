@@ -1,0 +1,135 @@
+---
+import Tray from '../components/Tray.astro';
+
+export interface Props {
+  cover?: string;
+  description?: string;
+  pizza?: string;
+  title?: string;
+}
+
+const defaultCover = '/pizza/01/cover.jpg';
+const defaultTitle = 'Perpetual Pizza | The never ending digital pizza';
+const defaultDescription =
+  'Watch the never ending digital pizza spin hypnotize you into ordering a pizza.';
+const siteUrl = import.meta.env.VERCEL_URL || Astro.url.href;
+const currentPath = Astro.url.pathname;
+
+const {
+  cover = defaultCover,
+  description = defaultDescription,
+  pizza,
+  title = defaultTitle,
+} = Astro.props;
+---
+
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <base href={siteUrl} />
+
+    <title>{title}</title>
+    <meta name="description" content={description} />
+    <meta name="robots" content="index,follow" />
+    <meta name="googlebot" content="index,follow" />
+    <meta name="google" content="nositelinkssearchbox" />
+    <meta name="format-detection" content="telephone=no" />
+    <link rel="canonical" href={`${siteUrl}${currentPath}`} />
+    <link rel="author" href="/humans.txt" />
+
+    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
+    <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png" />
+    <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png" />
+    <link rel="manifest" href="/site.webmanifest" />
+    <link rel="shortcut icon" href="/favicon.ico" />
+    <meta name="theme-color" content="#d00000" />
+
+    <meta property="og:image:width" content="1080" />
+    <meta property="og:image:height" content="1080" />
+    <meta property="og:title" content={title} />
+    <meta property="og:description" content={description} />
+    <meta property="og:url" content={`${siteUrl}${currentPath}`} />
+    <meta property="og:image" content={cover} />
+  </head>
+  <body>
+    <slot />
+    <Tray pizza={pizza} />
+  </body>
+</html>
+
+<style is:global>
+  :root {
+    --primary: 208, 0, 0;
+  }
+
+  * {
+    box-sizing: border-box;
+  }
+
+  body {
+    height: 100vh;
+    width: 100vw;
+    overflow: hidden;
+    margin: 0;
+    font: 1em/1.6 system-ui, -apple-system, BlinkMacSystemFont, Segoe UI, Roboto,
+      Oxygen, Ubuntu, Cantarell, Droid Sans, Helvetica Neue, Fira Sans,
+      sans-serif;
+    font-weight: 400;
+    font-style: normal;
+    text-rendering: optimizeLegibility;
+    -webkit-font-smoothing: antialiased;
+    background-color: #f48c06;
+    color: #fff;
+  }
+
+  .button {
+    --background-opacity: 0.7;
+
+    display: flex;
+    align-items: center;
+    width: max-content;
+    height: 2.25em;
+    padding: 0.4em 2em 0.333em;
+    border: 3px solid rgb(var(--primary));
+    border-radius: 5rem;
+    background-color: rgba(var(--primary), var(--background-opacity));
+    backdrop-filter: blur(12px);
+    box-shadow: 1px 1px 6px rgba(0, 0, 0, 0.25);
+    color: #fff;
+    cursor: pointer;
+    font-size: 1rem;
+    font-weight: bold;
+    line-height: 1.333;
+    text-decoration: none;
+    transition: background 333ms ease-in-out;
+  }
+
+  .button:hover,
+  .button:focus {
+    --background-opacity: 1;
+  }
+
+  .button__icon {
+    width: 1.5em;
+    height: 1.5em;
+    margin-left: 0.666em;
+  }
+
+  .button--nft {
+    position: absolute;
+    z-index: 5;
+    top: 2rem;
+    left: 50%;
+    transform: translateX(-50%);
+    padding-right: 16px;
+  }
+
+  .button--nft svg {
+    width: 3.2em;
+    height: 3.2em;
+    margin-left: 0.666em;
+    filter: drop-shadow(3px 5px 2px rgb(0, 0, 0, 0.25));
+  }
+</style>
