@@ -1,7 +1,7 @@
 # 🍕 Website for perpetual.pizza 🍕
 
 Simple static site for [perpetual.pizza](https://perpetual.pizza) built with
-11ty.
+AstroJS.
 
 Feel free to fork this project or take code as you please.
 
@@ -20,7 +20,7 @@ All commands are run from the root of the project, from a terminal:
 
 ## 🚀 Project Structure
 
-Inside of your Astro project, you'll see the following folders and files:
+Inside of this project, you'll see the following folders and files:
 
 ```
 /
@@ -35,9 +35,3 @@ Inside of your Astro project, you'll see the following folders and files:
 │       └── index.astro
 └── package.json
 ```
-
-Astro looks for `.astro` or `.md` files in the `src/pages/` directory. Each page is exposed as a route based on its file name.
-
-There's nothing special about `src/components/`, but that's where we like to put any Astro/React/Vue/Svelte/Preact components.
-
-Any static assets, like images, can be placed in the `public/` directory.
