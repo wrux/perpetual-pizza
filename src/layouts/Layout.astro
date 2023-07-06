@@ -12,7 +12,7 @@ const defaultCover = '/pizza/01/cover.jpg';
 const defaultTitle = 'Perpetual Pizza | The never ending digital pizza';
 const defaultDescription =
   'Watch the never ending digital pizza spin hypnotize you into ordering a pizza.';
-const siteUrl = Astro.url.href;
+const siteUrl = import.meta.env.VERCEL_URL || Astro.url.href;
 const currentPath = Astro.url.pathname;
 
 const {
