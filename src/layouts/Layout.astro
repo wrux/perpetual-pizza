@@ -55,9 +55,74 @@ const {
   </head>
   <body>
     <slot />
+    <div>
+      <button
+        id="toggle-fullscreen"
+        type="button"
+        class="toggle-fullscreen"
+        aria-label="Toggle fullscreen (or press F)"
+      >
+        <svg
+          xmlns="http://www.w3.org/2000/svg"
+          width="32"
+          height="32"
+          fill="currentColor"
+          viewBox="0 0 256 256"
+          class="fullscreen-out"
+        >
+          <path
+            d="M216,48V96a8,8,0,0,1-16,0V67.31l-42.34,42.35a8,8,0,0,1-11.32-11.32L188.69,56H160a8,8,0,0,1,0-16h48A8,8,0,0,1,216,48ZM98.34,146.34,56,188.69V160a8,8,0,0,0-16,0v48a8,8,0,0,0,8,8H96a8,8,0,0,0,0-16H67.31l42.35-42.34a8,8,0,0,0-11.32-11.32ZM208,152a8,8,0,0,0-8,8v28.69l-42.34-42.35a8,8,0,0,0-11.32,11.32L188.69,200H160a8,8,0,0,0,0,16h48a8,8,0,0,0,8-8V160A8,8,0,0,0,208,152ZM67.31,56H96a8,8,0,0,0,0-16H48a8,8,0,0,0-8,8V96a8,8,0,0,0,16,0V67.31l42.34,42.35a8,8,0,0,0,11.32-11.32Z"
+          ></path>
+        </svg>
+
+        <svg
+          xmlns="http://www.w3.org/2000/svg"
+          width="32"
+          height="32"
+          fill="currentColor"
+          viewBox="0 0 256 256"
+          class="fullscreen-in"
+          ><path
+            d="M205.66,194.34a8,8,0,0,1-11.32,11.32L128,139.31,61.66,205.66a8,8,0,0,1-11.32-11.32L116.69,128,50.34,61.66A8,8,0,0,1,61.66,50.34L128,116.69l66.34-66.35a8,8,0,0,1,11.32,11.32L139.31,128Z"
+          ></path></svg
+        >
+      </button>
+    </div>
     <Tray pizza={pizza} />
   </body>
 </html>
+
+<script>
+  const fullscreenButton = document.getElementById('toggle-fullscreen');
+
+  function toggleFullScreen() {
+    if (!document.fullscreenElement) {
+      document.documentElement.requestFullscreen();
+    } else if (document.exitFullscreen) {
+      document.exitFullscreen();
+    }
+  }
+
+  document.addEventListener(
+    'keydown',
+    (event) => {
+      if (['Enter', 'f'].includes(event.key)) toggleFullScreen();
+    },
+    false,
+  );
+
+  document.addEventListener(
+    'fullscreenchange',
+    () => {
+      const isFullscreen = !document.fullscreenElement;
+      document.body.classList.toggle('is-fullscreen', !isFullscreen);
+      fullscreenButton?.classList.toggle('open', !isFullscreen);
+    },
+    false,
+  );
+
+  fullscreenButton?.addEventListener('click', toggleFullScreen);
+</script>
 
 <style is:global>
   :root {
@@ -131,5 +196,51 @@ const {
     height: 3.2em;
     margin-left: 0.666em;
     filter: drop-shadow(3px 5px 2px rgb(0, 0, 0, 0.25));
+  }
+
+  .toggle-fullscreen {
+    position: absolute;
+    z-index: 5;
+    top: 2rem;
+    right: 2rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 2rem;
+    height: 2rem;
+    padding: 0;
+    margin: 0;
+    border: none;
+    color: white;
+    cursor: pointer;
+    background-color: rgba(0, 0, 0, 0.3);
+    backdrop-filter: blur(12px);
+    font-size: 1.5rem;
+    transition: background-color 333ms ease-in-out;
+  }
+
+  .toggle-fullscreen:hover {
+    background-color: rgba(0, 0, 0, 0.7);
+  }
+
+  .toggle-fullscreen svg {
+    width: 1em;
+    height: 1em;
+  }
+
+  .toggle-fullscreen.open {
+    opacity: 0.3;
+  }
+
+  .toggle-fullscreen .fullscreen-in {
+    display: none;
+  }
+
+  .toggle-fullscreen.open .fullscreen-out {
+    display: none;
+  }
+
+  .toggle-fullscreen.open .fullscreen-in {
+    display: block;
   }
 </style>
