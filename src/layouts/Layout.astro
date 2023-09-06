@@ -219,6 +219,12 @@ const {
     transition: background-color 333ms ease-in-out;
   }
 
+  @media (pointer: coarse) {
+    .toggle-fullscreen {
+      display: none;
+    }
+  }
+
   .toggle-fullscreen:hover {
     background-color: rgba(0, 0, 0, 0.7);
   }
