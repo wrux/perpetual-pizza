@@ -44,10 +44,14 @@ const { pizza } = Astro.props;
   </div>
 </div>
 
-<style scoped>
+<style>
   .tray {
     width: 100vw;
     height: 100vh;
+  }
+
+  body.is-fullscreen .tray {
+    display: none;
   }
 
   .tray__inner {
@@ -163,24 +167,24 @@ const { pizza } = Astro.props;
 </style>
 
 <script is:inline>
-  document.addEventListener('DOMContentLoaded', function () {
-    const tray = document.querySelector('[data-tray]');
-    if (!tray) {
-      return;
+document.addEventListener('DOMContentLoaded', function () {
+  const tray = document.querySelector('[data-tray]');
+  if (!tray) {
+    return;
+  }
+
+  tray.addEventListener('click', ({ target }) => {
+    if (target.hasAttribute('data-tray')) {
+      tray.classList.remove('expanded');
     }
-
-    tray.addEventListener('click', ({ target }) => {
-      if (target.hasAttribute('data-tray')) {
-        tray.classList.remove('expanded');
-      }
-    });
-
-    document
-      .querySelectorAll('[data-toggle-tray]')
-      .forEach((element) =>
-        element.addEventListener('click', () =>
-          tray.classList.toggle('expanded'),
-        ),
-      );
   });
+
+  document
+    .querySelectorAll('[data-toggle-tray]')
+    .forEach((element) =>
+      element.addEventListener('click', () =>
+        tray.classList.toggle('expanded'),
+      ),
+    );
+});
 </script>
