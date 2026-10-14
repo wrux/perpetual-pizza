@@ -654,25 +654,17 @@ const tabs = [
       radial-gradient(circle at 50% 50%, #ffd966 0 35%, #1a0a08 36% 38%, #e0a050 39% 46%, #1a0a08 47% 49%, #ffb050 50%);
   }
 
-  .look__swatch--halftone::after {
-    background: radial-gradient(circle, rgba(0, 0, 0, 0.55) 0 1.2px, transparent 1.6px);
-    background-size: 5px 5px;
-    mix-blend-mode: multiply;
-  }
-
-  .look__swatch--gameboy {
+  .look__swatch--kaleidoscope {
     --pizza:
-      radial-gradient(circle at 36% 34%, #0f380f 0 9%, transparent 10%),
-      radial-gradient(circle at 66% 40%, #0f380f 0 8%, transparent 9%),
-      radial-gradient(circle at 50% 68%, #0f380f 0 9%, transparent 10%),
-      radial-gradient(circle at 50% 50%, #9bbc0f 0 36%, #306230 37% 46%, #8bac0f 47%);
+      conic-gradient(from 0deg, #f3cf6b 0 45deg, #c4342b 45deg 90deg, #f3cf6b 90deg 135deg, #d9944a 135deg 180deg, #f3cf6b 180deg 225deg, #c4342b 225deg 270deg, #f3cf6b 270deg 315deg, #d9944a 315deg);
   }
 
-  .look__swatch--gameboy::after {
-    background:
-      linear-gradient(rgba(15, 56, 15, 0.35) 1px, transparent 1px),
-      linear-gradient(90deg, rgba(15, 56, 15, 0.35) 1px, transparent 1px);
-    background-size: 5px 5px;
+  .look__swatch--thermal {
+    --pizza:
+      radial-gradient(circle at 36% 34%, #fff6c0 0 9%, transparent 10%),
+      radial-gradient(circle at 66% 40%, #fff6c0 0 8%, transparent 9%),
+      radial-gradient(circle at 50% 68%, #fff6c0 0 9%, transparent 10%),
+      radial-gradient(circle at 50% 50%, #ff9a1a 0 36%, #b0103a 37% 46%, #2a0a5a 47%);
   }
 
   .look__swatch--vhs::after {
@@ -696,6 +688,14 @@ const tabs = [
     background-size:
       100% 3px,
       100% 100%;
+  }
+
+  .look__swatch--lsd {
+    --pizza:
+      radial-gradient(circle at 36% 34%, #ff2d95 0 9%, transparent 10%),
+      radial-gradient(circle at 66% 40%, #39ff14 0 8%, transparent 9%),
+      radial-gradient(circle at 50% 68%, #00e5ff 0 9%, transparent 10%),
+      conic-gradient(from 200deg, #ff00aa, #ffd000, #00ffa2, #4d7cff, #ff00aa);
   }
 
   .look__swatch--psychedelic {

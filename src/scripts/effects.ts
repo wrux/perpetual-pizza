@@ -2,23 +2,23 @@ import * as THREE from 'three';
 import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer.js';
 import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js';
 import { RenderPixelatedPass } from 'three/examples/jsm/postprocessing/RenderPixelatedPass.js';
-import { HalftonePass } from 'three/examples/jsm/postprocessing/HalftonePass.js';
 import { OutputPass } from 'three/examples/jsm/postprocessing/OutputPass.js';
 import { ShaderPass } from 'three/examples/jsm/postprocessing/ShaderPass.js';
-import type { Pass } from 'three/examples/jsm/postprocessing/Pass.js';
+import { Pass, FullScreenQuad } from 'three/examples/jsm/postprocessing/Pass.js';
 
-export const EFFECTS = ['none', 'pixelate', 'cartoon', 'halftone', 'gameboy', 'vhs', 'crt', 'psychedelic'] as const;
+export const EFFECTS = ['none', 'pixelate', 'cartoon', 'kaleidoscope', 'thermal', 'vhs', 'crt', 'psychedelic', 'lsd'] as const;
 export type EffectName = (typeof EFFECTS)[number];
 
 export const effectLabels: Record<EffectName, string> = {
   none: 'Realistic',
   pixelate: 'Pixelated',
   cartoon: 'Cartoon',
-  halftone: 'Halftone print',
-  gameboy: 'Game Boy',
+  kaleidoscope: 'Kaleidoscope',
+  thermal: 'Thermal',
   vhs: 'VHS tape',
   crt: 'CRT monitor',
   psychedelic: 'Psychedelic',
+  lsd: 'LSD',
 };
 
 /** Effects that want the pizza itself drawn with flat toon shading. */
@@ -79,48 +79,105 @@ const CartoonShader = {
   `,
 };
 
-/** Four-shade green palette with an ordered dither. Runs on display-ready sRGB. */
-const GameboyShader = {
+/** Mirrors the picture into a slowly turning mandala around the centre. Runs on display-ready sRGB. */
+const KaleidoscopeShader = {
   uniforms: {
     tDiffuse: { value: null as THREE.Texture | null },
     resolution: { value: new THREE.Vector2(1, 1) },
-    pixelSize: { value: 6 },
+    time: { value: 0 },
+    segments: { value: 8 },
   },
   vertexShader: VERTEX,
   fragmentShader: /* glsl */ `
     uniform sampler2D tDiffuse;
     uniform vec2 resolution;
-    uniform float pixelSize;
+    uniform float time;
+    uniform float segments;
     varying vec2 vUv;
 
-    const vec3 c0 = vec3(0.059, 0.220, 0.059);
-    const vec3 c1 = vec3(0.188, 0.384, 0.188);
-    const vec3 c2 = vec3(0.545, 0.675, 0.059);
-    const vec3 c3 = vec3(0.608, 0.737, 0.059);
+    void main() {
+      float aspect = resolution.x / resolution.y;
+      vec2 c = (vUv - 0.5) * vec2(aspect, 1.0);
+      float r = length(c);
+      float a = atan(c.y, c.x) + time * 0.15;
 
-    float bayer(vec2 p) {
-      // 4x4 Bayer matrix, values 0..15.
-      int x = int(mod(p.x, 4.0));
-      int y = int(mod(p.y, 4.0));
-      int i = x + y * 4;
-      float m[16];
-      m[0] = 0.0;  m[1] = 8.0;  m[2] = 2.0;  m[3] = 10.0;
-      m[4] = 12.0; m[5] = 4.0;  m[6] = 14.0; m[7] = 6.0;
-      m[8] = 3.0;  m[9] = 11.0; m[10] = 1.0; m[11] = 9.0;
-      m[12] = 15.0; m[13] = 7.0; m[14] = 13.0; m[15] = 5.0;
-      for (int k = 0; k < 16; k++) { if (k == i) return m[k] / 16.0; }
-      return 0.0;
+      // Fold the angle into one wedge and mirror every other wedge.
+      float wedge = 6.28318 / segments;
+      a = mod(a, wedge);
+      a = abs(a - wedge * 0.5);
+
+      // Gently breathe the radius so the pattern keeps shifting.
+      r *= 0.9 + 0.08 * sin(time * 0.7);
+      vec2 uv = vec2(cos(a), sin(a)) * r / vec2(aspect, 1.0) + 0.5;
+      // Keep samples on screen: mirror at the edges.
+      uv = abs(uv);
+      uv = 1.0 - abs(1.0 - uv);
+
+      vec3 col = texture2D(tDiffuse, uv).rgb;
+      // A soft seam highlight gives the facets a cut-glass feel.
+      float seam = smoothstep(0.03, 0.0, abs(a - wedge * 0.5)) * 0.12 + smoothstep(0.02, 0.0, a) * 0.12;
+      gl_FragColor = vec4(col + seam, 1.0);
+    }
+  `,
+};
+
+/** Thermal camera: brightness mapped to a heat palette with sensor noise and a soft glow. */
+const ThermalShader = {
+  uniforms: {
+    tDiffuse: { value: null as THREE.Texture | null },
+    resolution: { value: new THREE.Vector2(1, 1) },
+    time: { value: 0 },
+  },
+  vertexShader: VERTEX,
+  fragmentShader: /* glsl */ `
+    uniform sampler2D tDiffuse;
+    uniform vec2 resolution;
+    uniform float time;
+    varying vec2 vUv;
+
+    float hash(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
+    float luma(vec3 c) { return dot(c, vec3(0.299, 0.587, 0.114)); }
+
+    vec3 heat(float t) {
+      // black -> deep blue -> purple -> red -> orange -> yellow -> white
+      vec3 c0 = vec3(0.0, 0.0, 0.05);
+      vec3 c1 = vec3(0.1, 0.0, 0.45);
+      vec3 c2 = vec3(0.6, 0.05, 0.45);
+      vec3 c3 = vec3(0.95, 0.2, 0.1);
+      vec3 c4 = vec3(1.0, 0.65, 0.05);
+      vec3 c5 = vec3(1.0, 0.97, 0.6);
+      vec3 c6 = vec3(1.0);
+      float s = t * 6.0;
+      if (s < 1.0) return mix(c0, c1, s);
+      if (s < 2.0) return mix(c1, c2, s - 1.0);
+      if (s < 3.0) return mix(c2, c3, s - 2.0);
+      if (s < 4.0) return mix(c3, c4, s - 3.0);
+      if (s < 5.0) return mix(c4, c5, s - 4.0);
+      return mix(c5, c6, s - 5.0);
     }
 
     void main() {
+      vec2 px = 1.0 / resolution;
+      // Thermal sensors are soft: average a small neighbourhood.
+      float l = 0.0;
+      for (int y = -1; y <= 1; y++) {
+        for (int x = -1; x <= 1; x++) {
+          l += luma(texture2D(tDiffuse, vUv + vec2(float(x), float(y)) * px * 2.0).rgb);
+        }
+      }
+      l /= 9.0;
+      // Warm things (red toppings) read hotter than pale cheese.
       vec3 c = texture2D(tDiffuse, vUv).rgb;
-      float lum = dot(c, vec3(0.299, 0.587, 0.114));
-      // Lift the midtones a bit so the pizza isn't mostly dark green.
-      lum = pow(lum, 0.8);
-      vec2 cell = floor(vUv * resolution / pixelSize);
-      float d = (bayer(cell) - 0.5) / 3.0;
-      float v = clamp(lum + d, 0.0, 0.999) * 4.0;
-      vec3 col = v < 1.0 ? c0 : v < 2.0 ? c1 : v < 3.0 ? c2 : c3;
+      float warmth = clamp((c.r - c.b) * 0.5, 0.0, 0.3);
+      float t = clamp(pow(l, 1.7) * 0.68 + warmth * 0.6 + sin(time * 0.6) * 0.03, 0.0, 1.0);
+      // Sensor noise and a faint line flicker.
+      float grain = (hash(floor(vUv * resolution * 0.5) + fract(time * 7.0)) - 0.5) * 0.06;
+      t = clamp(t + grain, 0.0, 1.0);
+      vec3 col = heat(t);
+      // Vignette and a subtle glow around the hottest areas.
+      vec2 d = vUv - 0.5;
+      col *= 1.0 - dot(d, d) * 0.6;
+      col += heat(min(t + 0.15, 1.0)) * smoothstep(0.75, 1.0, t) * 0.25;
       gl_FragColor = vec4(col, 1.0);
     }
   `,
@@ -387,6 +444,124 @@ export class TransitionPass extends ShaderPass {
   }
 }
 
+/** Liquid melt, breathing, colour cycling and afterimage trails. Keeps its own feedback buffer. */
+const LsdShader = {
+  uniforms: {
+    tDiffuse: { value: null as THREE.Texture | null },
+    tEcho: { value: null as THREE.Texture | null },
+    resolution: { value: new THREE.Vector2(1, 1) },
+    time: { value: 0 },
+  },
+  vertexShader: VERTEX,
+  fragmentShader: /* glsl */ `
+    uniform sampler2D tDiffuse;
+    uniform sampler2D tEcho;
+    uniform vec2 resolution;
+    uniform float time;
+    varying vec2 vUv;
+
+    float hash(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
+
+    vec3 rgb2hsv(vec3 c) {
+      vec4 K = vec4(0.0, -1.0 / 3.0, 2.0 / 3.0, -1.0);
+      vec4 p = mix(vec4(c.bg, K.wz), vec4(c.gb, K.xy), step(c.b, c.g));
+      vec4 q = mix(vec4(p.xyw, c.r), vec4(c.r, p.yzx), step(p.x, c.r));
+      float d = q.x - min(q.w, q.y);
+      float e = 1.0e-10;
+      return vec3(abs(q.z + (q.w - q.y) / (6.0 * d + e)), d / (q.x + e), q.x);
+    }
+
+    vec3 hsv2rgb(vec3 c) {
+      vec4 K = vec4(1.0, 2.0 / 3.0, 1.0 / 3.0, 3.0);
+      vec3 p = abs(fract(c.xxx + K.xyz) * 6.0 - K.www);
+      return c.z * mix(K.xxx, clamp(p - K.xxx, 0.0, 1.0), c.y);
+    }
+
+    void main() {
+      float t = time;
+      vec2 c = vUv - 0.5;
+
+      // Everything melts: layered sine warps that drift in different directions.
+      vec2 melt = vec2(
+        sin(vUv.y * 6.0 + t * 1.3) + 0.5 * sin(vUv.y * 13.0 - t * 0.7) + 0.3 * sin(vUv.x * 9.0 + t * 0.5),
+        cos(vUv.x * 7.0 + t * 1.1) + 0.5 * sin(vUv.x * 11.0 + t * 0.9) + 0.3 * cos(vUv.y * 8.0 - t * 0.6)
+      ) * 0.014;
+      // The picture breathes.
+      float breathe = 1.0 + 0.06 * sin(t * 1.7);
+      vec2 uv = c * breathe + 0.5 + melt;
+
+      // Colour planes drift apart and circle each other.
+      vec2 sep = vec2(cos(t * 0.8), sin(t * 0.8)) * 0.007;
+      vec3 col;
+      col.r = texture2D(tDiffuse, uv + sep).r;
+      col.g = texture2D(tDiffuse, uv).g;
+      col.b = texture2D(tDiffuse, uv - sep).b;
+
+      // Oversaturate and roll the hue outward from the centre.
+      vec3 hsv = rgb2hsv(col);
+      hsv.x = fract(hsv.x + t * 0.1 + length(c) * 0.6 + hsv.z * 0.25);
+      hsv.y = clamp(hsv.y * 1.9 + 0.25, 0.0, 1.0);
+      col = hsv2rgb(hsv);
+
+      // Afterimages: the previous frame, slightly zoomed and twisted, lingers.
+      float a = 0.012 * sin(t * 0.5);
+      mat2 rot = mat2(cos(a), -sin(a), sin(a), cos(a));
+      vec2 e = rot * c * 0.985 + 0.5;
+      vec3 echo = texture2D(tEcho, e).rgb;
+      col = mix(col, max(col, echo * 0.94), 0.72);
+
+      // Sparkle.
+      float spark = step(0.996, hash(floor(vUv * resolution * 0.25) + floor(t * 8.0)));
+      col += spark * 0.8;
+
+      gl_FragColor = vec4(col, 1.0);
+    }
+  `,
+};
+
+/** A shader pass that feeds its own previous output back in as tEcho. */
+class FeedbackPass extends Pass {
+  readonly uniforms = THREE.UniformsUtils.clone(LsdShader.uniforms);
+  private readonly material = new THREE.ShaderMaterial({
+    uniforms: this.uniforms,
+    vertexShader: LsdShader.vertexShader,
+    fragmentShader: LsdShader.fragmentShader,
+  });
+  private readonly quad = new FullScreenQuad(this.material);
+  private readonly copyMaterial = new THREE.MeshBasicMaterial({ toneMapped: false });
+  private readonly copyQuad = new FullScreenQuad(this.copyMaterial);
+  private echoA = new THREE.WebGLRenderTarget(1, 1);
+  private echoB = new THREE.WebGLRenderTarget(1, 1);
+
+  setSize(width: number, height: number) {
+    this.echoA.setSize(width, height);
+    this.echoB.setSize(width, height);
+  }
+
+  render(renderer: THREE.WebGLRenderer, writeBuffer: THREE.WebGLRenderTarget, readBuffer: THREE.WebGLRenderTarget) {
+    this.uniforms.tDiffuse.value = readBuffer.texture;
+    this.uniforms.tEcho.value = this.echoA.texture;
+    // Composite into the spare echo buffer, which becomes next frame's history.
+    renderer.setRenderTarget(this.echoB);
+    this.quad.render(renderer);
+    // Then copy it out.
+    this.copyMaterial.map = this.echoB.texture;
+    renderer.setRenderTarget(this.renderToScreen ? null : writeBuffer);
+    if (this.clear) renderer.clear();
+    this.copyQuad.render(renderer);
+    [this.echoA, this.echoB] = [this.echoB, this.echoA];
+  }
+
+  dispose() {
+    this.material.dispose();
+    this.copyMaterial.dispose();
+    this.quad.dispose();
+    this.copyQuad.dispose();
+    this.echoA.dispose();
+    this.echoB.dispose();
+  }
+}
+
 export interface EffectContext {
   renderer: THREE.WebGLRenderer;
   scene: THREE.Scene;
@@ -419,11 +594,9 @@ export function createPipeline(ctx: EffectContext): EffectPipeline {
     return p;
   };
 
-  const resolutionPasses: ShaderPass[] = [];
+  const resolutionPasses: Array<{ uniforms: { resolution: { value: THREE.Vector2 } } }> = [];
   let pixelated: RenderPixelatedPass | null = null;
-  let halftone: HalftonePass | null = null;
-  const timedPasses: ShaderPass[] = [];
-  let gameboy: ShaderPass | null = null;
+  const timedPasses: Array<{ uniforms: { time: { value: number } } }> = [];
 
   switch (effect) {
     case 'pixelate':
@@ -436,26 +609,23 @@ export function createPipeline(ctx: EffectContext): EffectPipeline {
       resolutionPasses.push(add(new ShaderPass(CartoonShader)));
       break;
     }
-    case 'halftone':
+    case 'kaleidoscope':
       add(new RenderPass(scene, camera));
       add(new OutputPass());
-      halftone = add(
-        new HalftonePass({
-          shape: 1,
-          radius: 7 * renderer.getPixelRatio(),
-          scatter: 0,
-          blending: 0.85,
-          blendingMode: 1,
-          greyscale: false,
-        }),
-      );
+      {
+        const k = add(new ShaderPass(KaleidoscopeShader));
+        resolutionPasses.push(k);
+        timedPasses.push(k);
+      }
       break;
-    case 'gameboy':
-      pixelated = add(new RenderPixelatedPass(ctx.pixelSize, scene, camera, { normalEdgeStrength: 0, depthEdgeStrength: 0 }));
+    case 'thermal':
+      add(new RenderPass(scene, camera));
       add(new OutputPass());
-      gameboy = add(new ShaderPass(GameboyShader));
-      gameboy.uniforms.pixelSize.value = ctx.pixelSize;
-      resolutionPasses.push(gameboy);
+      {
+        const t = add(new ShaderPass(ThermalShader));
+        resolutionPasses.push(t);
+        timedPasses.push(t);
+      }
       break;
     case 'vhs':
       add(new RenderPass(scene, camera));
@@ -473,6 +643,15 @@ export function createPipeline(ctx: EffectContext): EffectPipeline {
         const crt = add(new ShaderPass(CrtShader));
         resolutionPasses.push(crt);
         timedPasses.push(crt);
+      }
+      break;
+    case 'lsd':
+      add(new RenderPass(scene, camera));
+      add(new OutputPass());
+      {
+        const lsd = add(new FeedbackPass());
+        resolutionPasses.push(lsd);
+        timedPasses.push(lsd);
       }
       break;
     case 'psychedelic':
@@ -497,14 +676,12 @@ export function createPipeline(ctx: EffectContext): EffectPipeline {
       composer.setSize(w, h);
       const pr = renderer.getPixelRatio();
       resolutionPasses.forEach((p) => p.uniforms.resolution.value.set(w * pr, h * pr));
-      halftone?.setSize(w * pr, h * pr);
     },
     tick(elapsed) {
       timedPasses.forEach((p) => (p.uniforms.time.value = elapsed));
     },
     setPixelSize(size) {
       pixelated?.setPixelSize(size);
-      if (gameboy) gameboy.uniforms.pixelSize.value = size;
     },
     dispose() {
       passes.forEach((p) => p.dispose?.());
