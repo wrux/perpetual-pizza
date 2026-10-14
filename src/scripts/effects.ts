@@ -10,6 +10,7 @@ export const EFFECTS = [
   'none',
   'pixelate',
   'oil',
+  'flat',
   'film',
   'vhs',
   'crt',
@@ -24,6 +25,7 @@ export const effectLabels: Record<EffectName, string> = {
   none: 'Default',
   pixelate: 'Pixel',
   oil: 'Oil Painting',
+  flat: 'Flat 2D',
   film: 'Old Film',
   vhs: 'VHS',
   crt: 'CRT',
@@ -649,9 +651,50 @@ const DrunkShader = simpleShader(/* glsl */ `
   }
 `);
 
+/** Flat 2D: smoothed, flattened to clean colour fills, with thin outlines on the strong edges. */
+const FlatShader = simpleShader(/* glsl */ `
+  const int R = 2;
+  void main() {
+    vec2 px = 1.0 / resolution;
+    // Kuwahara smoothing kills the shading and texture so regions become flat fills.
+    vec3 means[4];
+    vec3 sigmas[4];
+    float n = float((R + 1) * (R + 1));
+    for (int k = 0; k < 4; k++) { means[k] = vec3(0.0); sigmas[k] = vec3(0.0); }
+    for (int j = -R; j <= 0; j++) {
+      for (int i = -R; i <= 0; i++) {
+        vec3 c = texture2D(tDiffuse, vUv + vec2(float(i), float(j)) * px * 2.0).rgb; means[0] += c; sigmas[0] += c * c;
+        c = texture2D(tDiffuse, vUv + vec2(float(-i), float(j)) * px * 2.0).rgb; means[1] += c; sigmas[1] += c * c;
+        c = texture2D(tDiffuse, vUv + vec2(float(i), float(-j)) * px * 2.0).rgb; means[2] += c; sigmas[2] += c * c;
+        c = texture2D(tDiffuse, vUv + vec2(float(-i), float(-j)) * px * 2.0).rgb; means[3] += c; sigmas[3] += c * c;
+      }
+    }
+    float best = 1e9;
+    vec3 col = vec3(0.0);
+    for (int k = 0; k < 4; k++) {
+      vec3 m = means[k] / n;
+      vec3 sg = abs(sigmas[k] / n - m * m);
+      float v = sg.r + sg.g + sg.b;
+      if (v < best) { best = v; col = m; }
+    }
+
+    // Flatten brightness to three tones per colour, then lift and soften like a vector palette.
+    float l = luma(col);
+    float q = (floor(l * 3.0) + 0.5) / 3.0;
+    col = clamp(col * (q / max(l, 1e-4)), 0.0, 1.0);
+    col = mix(col, vec3(luma(col)), 0.15) * 0.92 + 0.08;
+
+    // Thin ink only where the picture really changes.
+    float edge = smoothstep(0.45, 0.75, sobel(vUv, px * 1.6));
+    col = mix(col, vec3(0.16, 0.1, 0.08), edge * 0.9);
+    gl_FragColor = vec4(col, 1.0);
+  }
+`);
+
 /** Looks that are one shader over the plain render. */
 const singlePassLooks: Partial<Record<EffectName, ReturnType<typeof simpleShader>>> = {
   oil: OilShader,
+  flat: FlatShader,
   film: OldFilmShader,
   vaporwave: VaporwaveShader,
   drunk: DrunkShader,
