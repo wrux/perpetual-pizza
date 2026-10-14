@@ -20,13 +20,13 @@ export type EffectName = (typeof EFFECTS)[number];
 
 export const effectLabels: Record<EffectName, string> = {
   none: 'Default',
-  pixelate: 'Pixelated',
-  oil: 'Oil painting',
-  film: 'Old film',
-  vhs: 'VHS tape',
-  crt: 'CRT monitor',
+  pixelate: 'Pixel',
+  oil: 'Oil Painting',
+  film: 'Old Film',
+  vhs: 'VHS',
+  crt: 'CRT',
   psychedelic: 'Psychedelic',
-  lsd: 'LSD',
+  lsd: 'Acid',
 };
 
 const VERTEX = /* glsl */ `
