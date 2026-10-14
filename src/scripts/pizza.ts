@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { createPipeline, EFFECTS, TransitionPass, usesToonMaterials, type EffectName, type EffectPipeline } from './effects';
+import { createPipeline, EFFECTS, TransitionPass, type EffectName, type EffectPipeline } from './effects';
 import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js';
 import { OutputPass } from 'three/examples/jsm/postprocessing/OutputPass.js';
 import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer.js';
@@ -808,31 +808,13 @@ function paintedFor(seed: number): PaintedSet {
 
 type MaterialParams = THREE.MeshPhysicalMaterialParameters;
 
-/** Four-band gradient for toon shading. */
-function toonGradient() {
-  const tex = new THREE.DataTexture(new Uint8Array([70, 130, 200, 255]), 4, 1, THREE.RedFormat);
-  tex.minFilter = tex.magFilter = THREE.NearestFilter;
-  tex.needsUpdate = true;
-  return tex;
-}
-
 function buildPizza(config: PizzaConfig, assets: Assets): THREE.Group {
   const rng = mulberry32(config.seed);
   const group = new THREE.Group();
 
-  const toon = usesToonMaterials(config.effect);
-  const gradient = toon ? toonGradient() : null;
-  if (gradient) assets.textures.push(gradient);
-  /** PBR material (physical when a clearcoat is wanted), or a flat toon one when the cartoon look is on. */
-  const material = (params: MaterialParams, physical = false): THREE.Material => {
-    if (!toon) return physical ? new THREE.MeshPhysicalMaterial(params) : new THREE.MeshStandardMaterial(params);
-    // Flat shading reads better without the bump detail, and three warns on undefined params.
-    const picked: THREE.MeshToonMaterialParameters = { gradientMap: gradient };
-    if (params.color !== undefined) picked.color = params.color;
-    if (params.map !== undefined) picked.map = params.map;
-    if (params.side !== undefined) picked.side = params.side;
-    return new THREE.MeshToonMaterial(picked);
-  };
+  /** PBR material, physical when a clearcoat is wanted. */
+  const material = (params: MaterialParams, physical = false): THREE.Material =>
+    physical ? new THREE.MeshPhysicalMaterial(params) : new THREE.MeshStandardMaterial(params);
 
   const geo = <T extends THREE.BufferGeometry>(g: T): T => (assets.geometries.push(g), g);
   const mat = <T extends THREE.Material>(m: T): T => (assets.materials.push(m), m);
@@ -1394,13 +1376,8 @@ export async function createPizza(
     config,
     renderPreviews,
     update(patch) {
-      const toonChanged = patch.effect !== undefined && usesToonMaterials(patch.effect) !== usesToonMaterials(config.effect);
       const needsRebuild =
-        patch.toppings !== undefined ||
-        patch.seed !== undefined ||
-        patch.ratio !== undefined ||
-        patch.levels !== undefined ||
-        toonChanged;
+        patch.toppings !== undefined || patch.seed !== undefined || patch.ratio !== undefined || patch.levels !== undefined;
       const lookChanged = patch.effect !== undefined && patch.effect !== config.effect;
       const seedChanged = patch.seed !== undefined && patch.seed !== config.seed;
       Object.assign(config, patch, patch.toppings ? { toppings: { ...config.toppings, ...patch.toppings } } : {});

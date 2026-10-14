@@ -9,12 +9,8 @@ import { Pass, FullScreenQuad } from 'three/examples/jsm/postprocessing/Pass.js'
 export const EFFECTS = [
   'none',
   'pixelate',
-  'cartoon',
   'oil',
-  'blueprint',
-  'ascii',
-  'kaleidoscope',
-  'noir',
+  'film',
   'vhs',
   'crt',
   'psychedelic',
@@ -25,20 +21,13 @@ export type EffectName = (typeof EFFECTS)[number];
 export const effectLabels: Record<EffectName, string> = {
   none: 'Realistic',
   pixelate: 'Pixelated',
-  cartoon: 'Cartoon',
   oil: 'Oil painting',
-  blueprint: 'Blueprint',
-  ascii: 'ASCII',
-  kaleidoscope: 'Kaleidoscope',
-  noir: 'Film noir',
+  film: 'Old film',
   vhs: 'VHS tape',
   crt: 'CRT monitor',
   psychedelic: 'Psychedelic',
   lsd: 'LSD',
 };
-
-/** Effects that want the pizza itself drawn with flat toon shading. */
-export const usesToonMaterials = (effect: EffectName) => effect === 'cartoon';
 
 const VERTEX = /* glsl */ `
   varying vec2 vUv;
@@ -47,95 +36,6 @@ const VERTEX = /* glsl */ `
     gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
   }
 `;
-
-/** Posterised colour with dark ink outlines from a Sobel edge detect. Runs on display-ready sRGB. */
-const CartoonShader = {
-  uniforms: {
-    tDiffuse: { value: null as THREE.Texture | null },
-    resolution: { value: new THREE.Vector2(1, 1) },
-    levels: { value: 5 },
-    edge: { value: 0.7 },
-  },
-  vertexShader: VERTEX,
-  fragmentShader: /* glsl */ `
-    uniform sampler2D tDiffuse;
-    uniform vec2 resolution;
-    uniform float levels;
-    uniform float edge;
-    varying vec2 vUv;
-
-    float luma(vec3 c) { return dot(c, vec3(0.299, 0.587, 0.114)); }
-    float sampleLuma(vec2 offset) { return luma(texture2D(tDiffuse, vUv + offset / resolution).rgb); }
-
-    void main() {
-      vec3 c = texture2D(tDiffuse, vUv).rgb;
-
-      float tl = sampleLuma(vec2(-1.0,  1.0));
-      float t  = sampleLuma(vec2( 0.0,  1.0));
-      float tr = sampleLuma(vec2( 1.0,  1.0));
-      float l  = sampleLuma(vec2(-1.0,  0.0));
-      float r  = sampleLuma(vec2( 1.0,  0.0));
-      float bl = sampleLuma(vec2(-1.0, -1.0));
-      float b  = sampleLuma(vec2( 0.0, -1.0));
-      float br = sampleLuma(vec2( 1.0, -1.0));
-      float gx = -tl - 2.0 * l - bl + tr + 2.0 * r + br;
-      float gy = -tl - 2.0 * t - tr + bl + 2.0 * b + br;
-      float g = sqrt(gx * gx + gy * gy);
-
-      // Quantise brightness but keep the hue.
-      float lum = luma(c);
-      float q = (floor(lum * levels) + 0.5) / levels;
-      vec3 toned = c * (q / max(lum, 1e-4));
-      toned = clamp(toned * 1.08, 0.0, 1.0);
-
-      vec3 ink = vec3(0.08, 0.03, 0.02);
-      float line = smoothstep(edge * 0.6, edge, g);
-      gl_FragColor = vec4(mix(toned, ink, line), 1.0);
-    }
-  `,
-};
-
-/** Mirrors the picture into a slowly turning mandala around the centre. Runs on display-ready sRGB. */
-const KaleidoscopeShader = {
-  uniforms: {
-    tDiffuse: { value: null as THREE.Texture | null },
-    resolution: { value: new THREE.Vector2(1, 1) },
-    time: { value: 0 },
-    segments: { value: 8 },
-  },
-  vertexShader: VERTEX,
-  fragmentShader: /* glsl */ `
-    uniform sampler2D tDiffuse;
-    uniform vec2 resolution;
-    uniform float time;
-    uniform float segments;
-    varying vec2 vUv;
-
-    void main() {
-      float aspect = resolution.x / resolution.y;
-      vec2 c = (vUv - 0.5) * vec2(aspect, 1.0);
-      float r = length(c);
-      float a = atan(c.y, c.x) + time * 0.15;
-
-      // Fold the angle into one wedge and mirror every other wedge.
-      float wedge = 6.28318 / segments;
-      a = mod(a, wedge);
-      a = abs(a - wedge * 0.5);
-
-      // Gently breathe the radius so the pattern keeps shifting.
-      r *= 0.9 + 0.08 * sin(time * 0.7);
-      vec2 uv = vec2(cos(a), sin(a)) * r / vec2(aspect, 1.0) + 0.5;
-      // Keep samples on screen: mirror at the edges.
-      uv = abs(uv);
-      uv = 1.0 - abs(1.0 - uv);
-
-      vec3 col = texture2D(tDiffuse, uv).rgb;
-      // A soft seam highlight gives the facets a cut-glass feel.
-      float seam = smoothstep(0.03, 0.0, abs(a - wedge * 0.5)) * 0.12 + smoothstep(0.02, 0.0, a) * 0.12;
-      gl_FragColor = vec4(col + seam, 1.0);
-    }
-  `,
-};
 
 /** Scanlines, colour fringing, tracking wobble and tape noise. Runs on display-ready sRGB. */
 const VhsShader = {
@@ -592,87 +492,68 @@ const OilShader = simpleShader(/* glsl */ `
   }
 `);
 
-/** White technical linework on blueprint blue with a faint grid. */
-const BlueprintShader = simpleShader(/* glsl */ `
+/** Old projected film: faded sepia, soft focus, gate weave, flicker, scratches, dust and heavy grain. */
+const OldFilmShader = simpleShader(/* glsl */ `
   void main() {
-    vec2 px = 1.0 / resolution;
-    float edge = smoothstep(0.12, 0.45, sobel(vUv, px * 1.3));
-    float glow = smoothstep(0.1, 0.9, sobel(vUv, px * 3.5)) * 0.25;
-    vec2 p = vUv * resolution;
-    float grid = step(0.985, fract(p.x / 24.0)) + step(0.985, fract(p.y / 24.0));
-    float paper = noise(p * 0.08) * 0.05;
-    vec3 blue = vec3(0.08, 0.22, 0.55) + paper;
-    vec3 col = blue + vec3(0.6, 0.75, 1.0) * grid * 0.12;
-    col += vec3(0.75, 0.85, 1.0) * glow;
-    col = mix(col, vec3(0.96, 0.98, 1.0), edge);
-    // Slight unevenness like a real print.
-    col *= 0.92 + 0.08 * noise(vUv * 6.0);
-    gl_FragColor = vec4(col, 1.0);
-  }
-`);
+    // Projectors ran at 16 to 18 frames a second; quantise time so the damage judders like that.
+    float frame = floor(time * 16.0);
 
-/** Characters picked by brightness, drawn on a dark terminal in the source colour. */
-const AsciiShader = simpleShader(/* glsl */ `
-  // 5x5 glyph bitmaps, darkest to brightest, as 25-bit integers.
-  float glyph(int index, vec2 p) {
-    int bits = 0;
-    if (index == 0) bits = 0;
-    else if (index == 1) bits = 4096;        // .
-    else if (index == 2) bits = 4100;        // :
-    else if (index == 3) bits = 14336;       // -
-    else if (index == 4) bits = 4329604;     // +
-    else if (index == 5) bits = 11512810;    // *
-    else if (index == 6) bits = 11184810;    // x-ish
-    else if (index == 7) bits = 33080895;    // #
-    else bits = 33554431;                    // block
-    int bit = int(p.x) + int(p.y) * 5;
-    float v = floor(float(bits) / pow(2.0, float(bit)));
-    return mod(v, 2.0);
-  }
-  void main() {
-    // About 55 rows of characters whatever the pixel density.
-    float cellPx = max(10.0, resolution.y / 55.0);
-    vec2 cell = floor(vUv * resolution / cellPx);
-    vec2 cellUv = (cell + 0.5) * cellPx / resolution;
-    vec3 src = texture2D(tDiffuse, cellUv).rgb;
-    float lum = luma(src);
-    int index = int(clamp(floor(lum * 8.99), 0.0, 8.0));
-    vec2 inCell = fract(vUv * resolution / cellPx);
-    // Glyph occupies the middle 5x5 of a 7x7 cell for spacing.
-    vec2 g = inCell * 7.0 - 1.0;
-    float on = (g.x < 0.0 || g.y < 0.0 || g.x >= 5.0 || g.y >= 5.0) ? 0.0 : glyph(index, floor(g));
-    vec3 ink = mix(vec3(0.35, 1.0, 0.45), src * 1.8, 0.5) * 1.15;
-    vec3 col = vec3(0.02, 0.03, 0.02) + ink * on;
-    col *= 0.9 + 0.1 * sin(vUv.y * resolution.y * 1.5);
-    gl_FragColor = vec4(col, 1.0);
-  }
-`);
+    // Gate weave and a vertical bounce when the sprockets slip.
+    vec2 weave = (vec2(hash(vec2(frame, 1.0)), hash(vec2(frame, 2.0))) - 0.5) * 0.006;
+    float slip = step(0.96, hash(vec2(frame, 9.0))) * (hash(vec2(frame, 10.0)) - 0.5) * 0.05;
+    vec2 uv = vUv + weave + vec2(0.0, slip);
+    // Warped frame: the film isn't quite flat in the gate.
+    uv += vec2(sin(uv.y * 5.0 + time * 0.7), cos(uv.x * 4.0 + time * 0.5)) * 0.002;
 
-/** High-contrast black and white with diffusion, grain, gate weave and dust. */
-const NoirShader = simpleShader(/* glsl */ `
-  void main() {
-    // Gate weave: the whole frame drifts a hair each frame.
-    vec2 weave = vec2(hash(vec2(floor(time * 24.0), 1.0)), hash(vec2(floor(time * 24.0), 2.0))) - 0.5;
-    vec2 uv = vUv + weave * 0.0025;
-    float l = luma(texture2D(tDiffuse, uv).rgb);
-    // Diffusion: bright areas bleed softly.
-    float glow = 0.0;
-    for (int i = 0; i < 6; i++) {
-      float a = float(i) * 1.0472;
-      glow += luma(texture2D(tDiffuse, uv + vec2(cos(a), sin(a)) * 0.015).rgb);
+    // Soft focus from an old lens: blend a few offset taps.
+    vec3 src = texture2D(tDiffuse, uv).rgb * 0.5;
+    for (int i = 0; i < 4; i++) {
+      float a = float(i) * 1.5708;
+      src += texture2D(tDiffuse, uv + vec2(cos(a), sin(a)) * 0.0035).rgb * 0.125;
     }
-    glow /= 6.0;
-    float v = smoothstep(0.18, 0.78, l) * 0.85 + smoothstep(0.6, 1.0, glow) * 0.35;
-    float grain = (hash(uv * resolution * 0.7 + fract(time * 11.0) * 100.0) - 0.5) * 0.14;
-    v += grain;
-    // Dust and the odd hair.
-    float dust = step(0.9993, hash(floor(uv * resolution * 0.3) + floor(time * 9.0)));
-    float hair = step(0.9985, hash(vec2(floor(uv.x * resolution.x * 0.15), floor(time * 6.0)))) * step(0.5, hash(vec2(floor(time * 6.0), 3.0)));
-    v = v * (1.0 - hair * 0.8) + dust * 0.6;
-    // Vignette and a warm-cold silver tint.
+    float l = luma(src);
+
+    // Faded contrast with lifted blacks and a sepia cast.
+    float tone = smoothstep(-0.05, 1.05, l);
+    tone = 0.12 + tone * 0.8;
+    vec3 sepia = vec3(1.0, 0.86, 0.66);
+    vec3 col = mix(vec3(tone), sepia * tone, 0.75);
+
+    // Flicker: every frame a little different, with occasional heavy dips.
+    float flicker = 0.85 + 0.15 * hash(vec2(frame, 3.0)) - step(0.93, hash(vec2(frame, 4.0))) * 0.25;
+    col *= flicker;
+
+    // Scratches: long vertical lines that wander, come and go.
+    float scratch = 0.0;
+    for (int i = 0; i < 3; i++) {
+      float seed = float(i) * 7.0;
+      float x = hash(vec2(floor(time * 0.5) + seed, 5.0)) + sin(time * (1.5 + seed) + seed) * 0.02;
+      float alive = step(0.4, hash(vec2(floor(time * 0.5) + seed, 6.0)));
+      float w = 0.0012 + hash(vec2(seed, 7.0)) * 0.001;
+      scratch += alive * (1.0 - smoothstep(0.0, w, abs(uv.x - x))) * (0.6 + 0.4 * hash(vec2(frame, seed)));
+    }
+    col = mix(col, vec3(0.95, 0.9, 0.8), clamp(scratch, 0.0, 1.0) * 0.8);
+
+    // Dust specks and the odd hair caught in the gate.
+    float dust = step(0.9985, hash(floor(uv * resolution * 0.2) + frame));
+    float hairOn = step(0.9, hash(vec2(frame, 11.0)));
+    float hairX = hash(vec2(frame, 12.0));
+    float hair = hairOn * (1.0 - smoothstep(0.0, 0.003, abs(uv.x - hairX - sin(uv.y * 30.0 + frame) * 0.01))) * step(0.3, uv.y) * step(uv.y, 0.8);
+    col = mix(col, vec3(0.1, 0.08, 0.06), dust * 0.8 + hair * 0.9);
+
+    // Heavy grain, bigger than modern noise.
+    float grain = (hash(floor(uv * resolution * 0.45) + fract(time * 23.0) * 100.0) - 0.5) * 0.22;
+    col += grain * (0.6 + 0.4 * tone);
+
+    // A light flare rolls through now and then, like a frame catching the lamp.
+    float flare = step(0.985, hash(vec2(floor(time * 0.7), 13.0))) * smoothstep(0.6, 0.0, abs(uv.y - fract(time * 2.0)));
+    col += vec3(1.0, 0.85, 0.6) * flare * 0.5;
+
+    // Soft, uneven vignette and darker frame edges.
     vec2 d = uv - 0.5;
-    v *= 1.0 - dot(d, d) * 1.2;
-    vec3 col = vec3(v) * vec3(1.0, 0.98, 0.95);
+    float vig = 1.0 - smoothstep(0.25, 0.85, dot(d, d) * 2.2 + noise(uv * 3.0 + time * 0.2) * 0.1);
+    col *= mix(0.35, 1.0, vig);
+
     gl_FragColor = vec4(col, 1.0);
   }
 `);
@@ -680,9 +561,7 @@ const NoirShader = simpleShader(/* glsl */ `
 /** Looks that are one shader over the plain render. */
 const singlePassLooks: Partial<Record<EffectName, ReturnType<typeof simpleShader>>> = {
   oil: OilShader,
-  blueprint: BlueprintShader,
-  ascii: AsciiShader,
-  noir: NoirShader,
+  film: OldFilmShader,
 };
 
 export interface EffectContext {
@@ -725,21 +604,6 @@ export function createPipeline(ctx: EffectContext): EffectPipeline {
     case 'pixelate':
       pixelated = add(new RenderPixelatedPass(ctx.pixelSize, scene, camera, { normalEdgeStrength: 0.25, depthEdgeStrength: 0.3 }));
       add(new OutputPass());
-      break;
-    case 'cartoon': {
-      add(new RenderPass(scene, camera));
-      add(new OutputPass());
-      resolutionPasses.push(add(new ShaderPass(CartoonShader)));
-      break;
-    }
-    case 'kaleidoscope':
-      add(new RenderPass(scene, camera));
-      add(new OutputPass());
-      {
-        const k = add(new ShaderPass(KaleidoscopeShader));
-        resolutionPasses.push(k);
-        timedPasses.push(k);
-      }
       break;
     case 'vhs':
       add(new RenderPass(scene, camera));

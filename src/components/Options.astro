@@ -1,4 +1,5 @@
 ---
+import Logo from './Logo.astro';
 import { EFFECTS, effectLabels } from '../scripts/effects';
 
 const tabs = [
@@ -12,21 +13,7 @@ const tabs = [
 <div class="chrome topbar">
   <header class="brand">
     <a class="brand__link" href="https://wrux.com" rel="author" title="Made by wrux.com">
-      <svg class="brand__logo" viewBox="0 0 64 64" aria-hidden="true" xmlns="http://www.w3.org/2000/svg">
-        <circle cx="32" cy="32" r="30" fill="#d9944a" />
-        <circle cx="32" cy="32" r="24" fill="#f3cf6b" />
-        <circle cx="21" cy="22" r="4.2" fill="#c4342b" />
-        <circle cx="44" cy="20" r="4.2" fill="#c4342b" />
-        <circle cx="47" cy="40" r="4.2" fill="#c4342b" />
-        <circle cx="19" cy="42" r="4.2" fill="#c4342b" />
-        <circle cx="33" cy="50" r="4.2" fill="#c4342b" />
-        <path d="M27 36c3-1 4-5 7-5" stroke="#4f7d2e" stroke-width="2.4" stroke-linecap="round" fill="none" />
-        <circle cx="32" cy="32" r="7.5" fill="#d9944a" />
-        <circle cx="32" cy="32" r="5.5" fill="#f3cf6b" />
-        <circle cx="30" cy="30.5" r="1.2" fill="#c4342b" />
-        <circle cx="34.5" cy="33" r="1.2" fill="#c4342b" />
-        <circle cx="32" cy="32" r="1.6" fill="#d9944a" />
-      </svg>
+      <span class="brand__logo"><Logo /></span>
       <span class="brand__text">
         <span class="brand__name">Perpetual Pizza</span>
         <span class="brand__by">by wrux.com</span>
@@ -243,10 +230,17 @@ const tabs = [
   }
 
   .brand__logo {
+    display: block;
     width: 2.3rem;
     height: 2.3rem;
     flex: none;
     filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.3));
+  }
+
+  .brand__logo :global(svg) {
+    display: block;
+    width: 100%;
+    height: 100%;
   }
 
   .brand__text {
@@ -644,19 +638,6 @@ const tabs = [
       linear-gradient(rgba(0, 0, 0, 0.22) 1px, transparent 1px),
       linear-gradient(90deg, rgba(0, 0, 0, 0.22) 1px, transparent 1px);
     background-size: 6px 6px;
-  }
-
-  .look__swatch--cartoon {
-    --pizza:
-      radial-gradient(circle at 36% 34%, #1a0a08 0 10%, #d33a2e 11% 19%, transparent 20%),
-      radial-gradient(circle at 66% 40%, #1a0a08 0 9%, #d33a2e 10% 17%, transparent 18%),
-      radial-gradient(circle at 50% 68%, #1a0a08 0 10%, #d33a2e 11% 19%, transparent 20%),
-      radial-gradient(circle at 50% 50%, #ffd966 0 35%, #1a0a08 36% 38%, #e0a050 39% 46%, #1a0a08 47% 49%, #ffb050 50%);
-  }
-
-  .look__swatch--kaleidoscope {
-    --pizza:
-      conic-gradient(from 0deg, #f3cf6b 0 45deg, #c4342b 45deg 90deg, #f3cf6b 90deg 135deg, #d9944a 135deg 180deg, #f3cf6b 180deg 225deg, #c4342b 225deg 270deg, #f3cf6b 270deg 315deg, #d9944a 315deg);
   }
 
   .look__swatch--vhs::after {
