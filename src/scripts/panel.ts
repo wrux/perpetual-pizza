@@ -163,6 +163,14 @@ export function initPanel(pizza: PizzaController) {
 
   const readKey = (key: string): Primitive => (virtual[key] ? virtual[key].get(pizza.config) : (getPath(pizza.config, key) ?? ''));
 
+  /** Tell the slider's track how much of it to fill. */
+  const paintTrack = (el: HTMLInputElement) => {
+    const min = Number(el.min);
+    const max = Number(el.max);
+    const pct = ((Number(el.value) - min) / (max - min)) * 100;
+    el.style.setProperty('--p', `${pct}%`);
+  };
+
   /** Push the controller's config into the form. */
   function sync() {
     for (const el of inputs) {
@@ -170,6 +178,7 @@ export function initPanel(pizza: PizzaController) {
       if (el instanceof HTMLInputElement && el.type === 'checkbox') el.checked = Boolean(value);
       else if (el instanceof HTMLInputElement && el.type === 'radio') el.checked = el.value === String(value);
       else el.value = String(value);
+      if (el instanceof HTMLInputElement && el.type === 'range') paintTrack(el);
     }
     for (const out of outputs) {
       const key = out.dataset.output!;
@@ -192,7 +201,10 @@ export function initPanel(pizza: PizzaController) {
       const key = el.dataset.key!;
       let value: Primitive;
       if (el instanceof HTMLInputElement && el.type === 'checkbox') value = el.checked;
-      else if (el instanceof HTMLInputElement && el.type === 'range') value = Number(el.value);
+      else if (el instanceof HTMLInputElement && el.type === 'range') {
+        value = Number(el.value);
+        paintTrack(el);
+      }
       else value = Number.isNaN(Number(el.value)) ? el.value : Number(el.value);
 
       if (virtual[key]) apply(virtual[key].set(Number(value)));

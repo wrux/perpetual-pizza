@@ -54,9 +54,12 @@ import { EFFECTS, effectLabels } from '../scripts/effects';
 <aside id="options" class="options" aria-label="Pizza options">
   <div class="options__header">
     <h2>Options</h2>
-    <button type="button" class="toolbar__button options__close" data-action="close" aria-label="Close options">
-      <svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18" /></svg>
-    </button>
+    <div class="options__header-actions">
+      <button type="button" class="options__reset" data-action="reset">Reset</button>
+      <button type="button" class="toolbar__button options__close" data-action="close" aria-label="Close options">
+        <svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18" /></svg>
+      </button>
+    </div>
   </div>
 
   <form class="options__form" autocomplete="off">
@@ -128,13 +131,11 @@ import { EFFECTS, effectLabels } from '../scripts/effects';
         <span>Olives <output data-output="toppings.olive"></output></span>
         <input type="range" data-key="toppings.olive" min="0" max="40" step="1" />
       </label>
-      <button type="button" class="button button--small" data-action="shuffle">Shuffle toppings</button>
+      <button type="button" class="button button--small" data-action="shuffle">
+        <svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 3h5v5M4 20L21 3M21 16v5h-5M15 15l6 6M4 4l5 5" /></svg>
+        Shuffle toppings
+      </button>
     </fieldset>
-
-    <div class="options__footer">
-      <button type="button" class="button button--small" data-action="share">Copy link</button>
-      <button type="button" class="button button--small button--ghost" data-action="reset">Reset</button>
-    </div>
   </form>
 </aside>
 
@@ -157,6 +158,11 @@ import { EFFECTS, effectLabels } from '../scripts/effects';
   body.is-fullscreen .chrome,
   body.is-fullscreen .options {
     display: none;
+  }
+
+  :where(.chrome, .options) :focus-visible {
+    outline: 2px solid #fff;
+    outline-offset: 2px;
   }
 
   /* ---- Top bar ------------------------------------------------------- */
@@ -184,25 +190,29 @@ import { EFFECTS, effectLabels } from '../scripts/effects';
     display: flex;
     align-items: center;
     gap: 0.7rem;
-    padding: 0.4rem 1rem 0.4rem 0.5rem;
+    padding: 0.4rem 1rem 0.4rem 0.45rem;
+    border: 1px solid rgba(255, 255, 255, 0.12);
     border-radius: 5rem;
-    background: rgba(20, 8, 2, 0.45);
-    backdrop-filter: blur(14px);
-    -webkit-backdrop-filter: blur(14px);
-    box-shadow: 1px 1px 6px rgba(0, 0, 0, 0.25);
+    background: rgba(20, 8, 2, 0.5);
+    backdrop-filter: blur(16px) saturate(140%);
+    -webkit-backdrop-filter: blur(16px) saturate(140%);
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
     color: #fff;
     text-decoration: none;
-    transition: background 333ms ease-in-out;
+    transition:
+      background 250ms ease,
+      border-color 250ms ease;
   }
 
   .brand__link:hover,
   .brand__link:focus-visible {
-    background: rgba(20, 8, 2, 0.7);
+    background: rgba(20, 8, 2, 0.72);
+    border-color: rgba(255, 255, 255, 0.25);
   }
 
   .brand__logo {
-    width: 2.4rem;
-    height: 2.4rem;
+    width: 2.3rem;
+    height: 2.3rem;
     flex: none;
     filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.3));
   }
@@ -216,6 +226,7 @@ import { EFFECTS, effectLabels } from '../scripts/effects';
 
   .brand__name {
     overflow: hidden;
+    font-size: 0.95rem;
     font-weight: 800;
     letter-spacing: 0.01em;
     white-space: nowrap;
@@ -223,26 +234,27 @@ import { EFFECTS, effectLabels } from '../scripts/effects';
   }
 
   .brand__by {
-    font-size: 0.72rem;
-    opacity: 0.75;
+    font-size: 0.68rem;
+    letter-spacing: 0.02em;
+    color: rgba(255, 255, 255, 0.65);
   }
 
   .brand__link:hover .brand__by {
-    text-decoration: underline;
-    opacity: 1;
+    color: #fff;
   }
 
   /* ---- Toolbar ------------------------------------------------------- */
   .toolbar {
     flex: none;
     display: flex;
-    gap: 0.25rem;
+    gap: 0.2rem;
     padding: 0.25rem;
+    border: 1px solid rgba(255, 255, 255, 0.12);
     border-radius: 5rem;
-    background: rgba(20, 8, 2, 0.45);
-    backdrop-filter: blur(14px);
-    -webkit-backdrop-filter: blur(14px);
-    box-shadow: 1px 1px 6px rgba(0, 0, 0, 0.25);
+    background: rgba(20, 8, 2, 0.5);
+    backdrop-filter: blur(16px) saturate(140%);
+    -webkit-backdrop-filter: blur(16px) saturate(140%);
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
   }
 
   .toolbar__button {
@@ -256,19 +268,26 @@ import { EFFECTS, effectLabels } from '../scripts/effects';
     background: transparent;
     color: #fff;
     cursor: pointer;
-    transition: background 200ms ease;
+    transition:
+      background 180ms ease,
+      transform 120ms ease;
   }
 
   .toolbar__button svg {
-    width: 1.25rem;
-    height: 1.25rem;
+    width: 1.2rem;
+    height: 1.2rem;
   }
 
-  .toolbar__button:hover,
-  .toolbar__button:focus-visible,
+  .toolbar__button:hover {
+    background: rgba(255, 255, 255, 0.12);
+  }
+
+  .toolbar__button:active {
+    transform: scale(0.94);
+  }
+
   .toolbar__button[aria-expanded='true'] {
-    background: rgba(var(--primary), 0.85);
-    outline: none;
+    background: rgb(var(--primary));
   }
 
   .toggle-fullscreen .fullscreen-in,
@@ -288,25 +307,29 @@ import { EFFECTS, effectLabels } from '../scripts/effects';
 
   /* ---- Panel --------------------------------------------------------- */
   .options {
+    --pad: 1.5rem;
+
     position: fixed;
     z-index: 6;
     top: 0;
     right: 0;
     bottom: 0;
     width: min(22rem, 100vw);
-    padding: 1.25rem 1.5rem 2rem;
+    padding: 1.35rem var(--pad) 2rem;
     overflow-y: auto;
     overscroll-behavior: contain;
-    background: rgba(20, 8, 2, 0.6);
-    backdrop-filter: blur(20px);
-    -webkit-backdrop-filter: blur(20px);
-    box-shadow: -4px 0 24px rgba(0, 0, 0, 0.25);
+    border-left: 1px solid rgba(255, 255, 255, 0.1);
+    background: rgba(18, 8, 3, 0.68);
+    backdrop-filter: blur(24px) saturate(140%);
+    -webkit-backdrop-filter: blur(24px) saturate(140%);
+    box-shadow: -8px 0 32px rgba(0, 0, 0, 0.3);
     color: #fff;
+    font-size: 0.875rem;
     transform: translateX(100%);
     visibility: hidden;
     transition:
-      transform 360ms cubic-bezier(0.2, 0.8, 0.2, 1),
-      visibility 0s linear 360ms;
+      transform 380ms cubic-bezier(0.2, 0.8, 0.2, 1),
+      visibility 0s linear 380ms;
   }
 
   .options.open {
@@ -319,22 +342,295 @@ import { EFFECTS, effectLabels } from '../scripts/effects';
     display: flex;
     align-items: center;
     justify-content: space-between;
-    margin-bottom: 1.25rem;
+    margin-bottom: 1.5rem;
     /* leave room for the toolbar pill above */
     padding-right: 9rem;
   }
 
   .options__header h2 {
     margin: 0;
-    font-size: 1.1rem;
+    font-size: 1.05rem;
     font-weight: 800;
+    letter-spacing: 0.01em;
+  }
+
+  .options__header-actions {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+
+  .options__reset {
+    padding: 0.3em 0.7em;
+    border: 0;
+    border-radius: 5rem;
+    background: transparent;
+    color: rgba(255, 255, 255, 0.6);
+    font: inherit;
+    font-size: 0.8rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition:
+      color 150ms ease,
+      background 150ms ease;
+  }
+
+  .options__reset:hover {
+    color: #fff;
+    background: rgba(255, 255, 255, 0.1);
   }
 
   .options__close {
     display: none;
   }
 
-  /* Phones: a bottom sheet instead of a side drawer. */
+  .options__form {
+    display: flex;
+    flex-direction: column;
+  }
+
+  fieldset {
+    display: flex;
+    flex-direction: column;
+    gap: 0.85rem;
+    margin: 0;
+    padding: 1.25rem 0;
+    border: 0;
+    border-top: 1px solid rgba(255, 255, 255, 0.1);
+    /* Stagger in when the panel opens. */
+    opacity: 0;
+    transform: translateY(6px);
+    transition:
+      opacity 320ms ease,
+      transform 320ms ease;
+  }
+
+  fieldset:first-child {
+    padding-top: 0;
+    border-top: 0;
+  }
+
+  .options.open fieldset {
+    opacity: 1;
+    transform: none;
+  }
+
+  .options.open fieldset:nth-child(1) { transition-delay: 60ms; }
+  .options.open fieldset:nth-child(2) { transition-delay: 120ms; }
+  .options.open fieldset:nth-child(3) { transition-delay: 180ms; }
+  .options.open fieldset:nth-child(4) { transition-delay: 240ms; }
+
+  legend {
+    float: left; /* lets the fieldset's border-top sit above the legend */
+    width: 100%;
+    padding: 0;
+    margin-bottom: 0.9rem;
+    font-size: 0.68rem;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: rgba(255, 255, 255, 0.5);
+  }
+
+  label {
+    display: flex;
+    flex-direction: column;
+    gap: 0.45rem;
+  }
+
+  label > span {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    font-weight: 500;
+  }
+
+  label[hidden] {
+    display: none;
+  }
+
+  output {
+    padding: 0.1em 0.5em;
+    border-radius: 5rem;
+    background: rgba(255, 255, 255, 0.1);
+    font-size: 0.75rem;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+    color: rgba(255, 255, 255, 0.85);
+  }
+
+  .options__row {
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  /* Range sliders: one look in every browser, with the filled part of the track. */
+  input[type='range'] {
+    --p: 50%;
+
+    appearance: none;
+    -webkit-appearance: none;
+    width: 100%;
+    height: 1.5rem;
+    margin: 0;
+    background: transparent;
+    cursor: pointer;
+  }
+
+  input[type='range']::-webkit-slider-runnable-track {
+    height: 4px;
+    border-radius: 2px;
+    background: linear-gradient(90deg, rgb(var(--primary)) var(--p), rgba(255, 255, 255, 0.18) var(--p));
+  }
+
+  input[type='range']::-moz-range-track {
+    height: 4px;
+    border-radius: 2px;
+    background: rgba(255, 255, 255, 0.18);
+  }
+
+  input[type='range']::-moz-range-progress {
+    height: 4px;
+    border-radius: 2px;
+    background: rgb(var(--primary));
+  }
+
+  input[type='range']::-webkit-slider-thumb {
+    appearance: none;
+    -webkit-appearance: none;
+    width: 1.1rem;
+    height: 1.1rem;
+    margin-top: calc(2px - 0.55rem);
+    border: 0;
+    border-radius: 50%;
+    background: #fff;
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.35);
+    transition: transform 120ms ease;
+  }
+
+  input[type='range']::-moz-range-thumb {
+    width: 1.1rem;
+    height: 1.1rem;
+    border: 0;
+    border-radius: 50%;
+    background: #fff;
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.35);
+    transition: transform 120ms ease;
+  }
+
+  input[type='range']:hover::-webkit-slider-thumb,
+  input[type='range']:active::-webkit-slider-thumb {
+    transform: scale(1.15);
+  }
+
+  input[type='range']:hover::-moz-range-thumb,
+  input[type='range']:active::-moz-range-thumb {
+    transform: scale(1.15);
+  }
+
+  /* Toggle switch */
+  .switch {
+    appearance: none;
+    width: 2.5rem;
+    height: 1.45rem;
+    margin: 0;
+    border-radius: 1rem;
+    background: rgba(255, 255, 255, 0.2);
+    position: relative;
+    cursor: pointer;
+    transition: background 200ms ease;
+  }
+
+  .switch::after {
+    content: '';
+    position: absolute;
+    top: 0.175rem;
+    left: 0.175rem;
+    width: 1.1rem;
+    height: 1.1rem;
+    border-radius: 50%;
+    background: #fff;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+    transition: transform 200ms cubic-bezier(0.2, 0.8, 0.2, 1);
+  }
+
+  .switch:checked {
+    background: rgb(var(--primary));
+  }
+
+  .switch:checked::after {
+    transform: translateX(1.05rem);
+  }
+
+  /* Chips */
+  .chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+  }
+
+  .chip {
+    position: relative;
+  }
+
+  .chip input {
+    position: absolute;
+    inset: 0;
+    opacity: 0;
+    margin: 0;
+    cursor: pointer;
+  }
+
+  .chip span {
+    display: block;
+    padding: 0.4em 0.85em;
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    border-radius: 5rem;
+    background: rgba(255, 255, 255, 0.06);
+    font-size: 0.8rem;
+    font-weight: 600;
+    line-height: 1.3;
+    transition:
+      background 160ms ease,
+      border-color 160ms ease,
+      transform 120ms ease;
+  }
+
+  .chip input:hover + span {
+    background: rgba(255, 255, 255, 0.12);
+    border-color: rgba(255, 255, 255, 0.3);
+  }
+
+  .chip input:active + span {
+    transform: scale(0.96);
+  }
+
+  .chip input:focus-visible + span {
+    outline: 2px solid #fff;
+    outline-offset: 2px;
+  }
+
+  .chip input:checked + span {
+    background: rgb(var(--primary));
+    border-color: rgb(var(--primary));
+  }
+
+  .button--small {
+    gap: 0.5em;
+    height: auto;
+    padding: 0.5em 1.1em;
+    border-width: 0;
+    font-size: 0.8rem;
+    align-self: flex-start;
+  }
+
+  .button--small svg {
+    width: 1em;
+    height: 1em;
+  }
+
+  /* ---- Phones: a bottom sheet instead of a side drawer. --------------- */
   @media (max-width: 640px) {
     .options {
       top: auto;
@@ -343,20 +639,22 @@ import { EFFECTS, effectLabels } from '../scripts/effects';
       bottom: 0;
       width: 100%;
       max-height: 72dvh;
-      padding: 0.6rem 1.25rem calc(1.5rem + env(safe-area-inset-bottom));
+      padding: 0.6rem var(--pad) calc(1.5rem + env(safe-area-inset-bottom));
+      border-left: 0;
+      border-top: 1px solid rgba(255, 255, 255, 0.12);
       border-radius: 1.25rem 1.25rem 0 0;
-      box-shadow: 0 -4px 24px rgba(0, 0, 0, 0.3);
+      box-shadow: 0 -8px 32px rgba(0, 0, 0, 0.35);
       transform: translateY(100%);
     }
 
     .options::before {
       content: '';
       display: block;
-      width: 2.5rem;
+      width: 2.25rem;
       height: 4px;
       margin: 0 auto 0.75rem;
       border-radius: 2px;
-      background: rgba(255, 255, 255, 0.35);
+      background: rgba(255, 255, 255, 0.3);
     }
 
     .options.open {
@@ -370,11 +668,9 @@ import { EFFECTS, effectLabels } from '../scripts/effects';
 
     .options__close {
       display: grid;
-      background: rgba(255, 255, 255, 0.12);
-    }
-
-    .options__form {
-      gap: 1.25rem;
+      width: 2.1rem;
+      height: 2.1rem;
+      background: rgba(255, 255, 255, 0.1);
     }
 
     .toast {
@@ -402,160 +698,13 @@ import { EFFECTS, effectLabels } from '../scripts/effects';
     }
   }
 
-  .options__form {
-    display: flex;
-    flex-direction: column;
-    gap: 1.5rem;
-  }
-
-  fieldset {
-    display: flex;
-    flex-direction: column;
-    gap: 0.7rem;
-    margin: 0;
-    padding: 0;
-    border: 0;
-  }
-
-  legend {
-    padding: 0;
-    margin-bottom: 0.7rem;
-    font-size: 0.72rem;
-    font-weight: bold;
-    letter-spacing: 0.1em;
-    text-transform: uppercase;
-    opacity: 0.65;
-  }
-
-  label {
-    display: flex;
-    flex-direction: column;
-    gap: 0.3rem;
-    font-size: 0.9rem;
-  }
-
-  label > span {
-    display: flex;
-    justify-content: space-between;
-  }
-
-  label[hidden] {
-    display: none;
-  }
-
-  output {
-    font-variant-numeric: tabular-nums;
-    opacity: 0.7;
-  }
-
-  .options__row {
-    flex-direction: row;
-    align-items: center;
-    justify-content: space-between;
-  }
-
-  input[type='range'] {
-    width: 100%;
-    accent-color: rgb(var(--primary));
-  }
-
-  /* Toggle switch */
-  .switch {
-    appearance: none;
-    width: 2.6rem;
-    height: 1.5rem;
-    margin: 0;
-    border-radius: 1rem;
-    background: rgba(255, 255, 255, 0.25);
-    position: relative;
-    cursor: pointer;
-    transition: background 200ms ease;
-  }
-
-  .switch::after {
-    content: '';
-    position: absolute;
-    top: 0.2rem;
-    left: 0.2rem;
-    width: 1.1rem;
-    height: 1.1rem;
-    border-radius: 50%;
-    background: #fff;
-    transition: transform 200ms ease;
-  }
-
-  .switch:checked {
-    background: rgb(var(--primary));
-  }
-
-  .switch:checked::after {
-    transform: translateX(1.1rem);
-  }
-
-  /* Chips */
-  .chips {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 0.4rem;
-  }
-
-  .chip {
-    position: relative;
-  }
-
-  .chip input {
-    position: absolute;
-    inset: 0;
-    opacity: 0;
-    margin: 0;
-    cursor: pointer;
-  }
-
-  .chip span {
-    display: block;
-    padding: 0.45em 1em;
-    border: 2px solid rgba(255, 255, 255, 0.25);
-    border-radius: 5rem;
-    font-size: 0.85rem;
-    font-weight: 600;
-    transition:
-      background 200ms ease,
-      border-color 200ms ease;
-  }
-
-  .chip input:hover + span,
-  .chip input:focus-visible + span {
-    border-color: rgba(255, 255, 255, 0.7);
-  }
-
-  .chip input:checked + span {
-    background: rgb(var(--primary));
-    border-color: rgb(var(--primary));
-  }
-
-  .options__footer {
-    display: flex;
-    gap: 0.6rem;
-    padding-top: 0.5rem;
-    border-top: 1px solid rgba(255, 255, 255, 0.15);
-  }
-
-  .button--small {
-    height: auto;
-    padding: 0.45em 1.2em;
-    font-size: 0.85rem;
-    align-self: flex-start;
-  }
-
-  .button--ghost {
-    --background-opacity: 0;
-    border-color: rgba(255, 255, 255, 0.4);
-  }
-
-  .button--ghost:hover,
-  .button--ghost:focus {
-    --background-opacity: 0;
-    border-color: #fff;
+  @media (prefers-reduced-motion: reduce) {
+    .options,
+    fieldset,
+    .chip span,
+    .toolbar__button {
+      transition: none;
+    }
   }
 
   /* ---- Toast --------------------------------------------------------- */
@@ -564,19 +713,20 @@ import { EFFECTS, effectLabels } from '../scripts/effects';
     z-index: 8;
     left: 50%;
     bottom: 2rem;
-    padding: 0.6em 1.2em;
+    padding: 0.6em 1.1em;
+    border: 1px solid rgba(255, 255, 255, 0.12);
     border-radius: 5rem;
-    background: rgba(20, 8, 2, 0.75);
-    backdrop-filter: blur(14px);
+    background: rgba(18, 8, 3, 0.8);
+    backdrop-filter: blur(16px);
     color: #fff;
-    font-size: 0.9rem;
+    font-size: 0.85rem;
     font-weight: 600;
-    transform: translate(-50%, 1rem);
+    transform: translate(-50%, 0.75rem);
     opacity: 0;
     pointer-events: none;
     transition:
-      opacity 250ms ease,
-      transform 250ms ease;
+      opacity 220ms ease,
+      transform 220ms cubic-bezier(0.2, 0.8, 0.2, 1);
   }
 
   .toast.show {
