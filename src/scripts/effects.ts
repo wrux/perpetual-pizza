@@ -13,6 +13,8 @@ export const EFFECTS = [
   'film',
   'vhs',
   'crt',
+  'vaporwave',
+  'drunk',
   'psychedelic',
   'lsd',
 ] as const;
@@ -25,6 +27,8 @@ export const effectLabels: Record<EffectName, string> = {
   film: 'Old Film',
   vhs: 'VHS',
   crt: 'CRT',
+  vaporwave: 'Vaporwave',
+  drunk: 'Drunk',
   psychedelic: 'Psychedelic',
   lsd: 'Acid',
 };
@@ -558,10 +562,99 @@ const OldFilmShader = simpleShader(/* glsl */ `
   }
 `);
 
+/** Vaporwave: purple-pink-cyan gradient map, a neon grid floor, bloom and faint scanlines. */
+const VaporwaveShader = simpleShader(/* glsl */ `
+  vec3 grade(float t) {
+    vec3 shadow = vec3(0.12, 0.03, 0.35);
+    vec3 mid = vec3(1.0, 0.44, 0.81);
+    vec3 light = vec3(0.0, 0.86, 1.0);
+    vec3 top = vec3(0.95, 0.95, 1.0);
+    if (t < 0.45) return mix(shadow, mid, t / 0.45);
+    if (t < 0.8) return mix(mid, light, (t - 0.45) / 0.35);
+    return mix(light, top, (t - 0.8) / 0.2);
+  }
+  void main() {
+    // A little colour fringing, drifting.
+    vec2 off = vec2(0.003 + 0.002 * sin(time * 0.8), 0.0);
+    vec3 c;
+    c.r = texture2D(tDiffuse, vUv + off).r;
+    c.g = texture2D(tDiffuse, vUv).g;
+    c.b = texture2D(tDiffuse, vUv - off).b;
+    float l = luma(c);
+    vec3 col = grade(smoothstep(0.02, 0.98, l));
+    // Keep a whisper of the original hue so the toppings still read.
+    col = mix(col, col * (0.6 + c), 0.25);
+
+    // Soft bloom from the highlights.
+    float glow = 0.0;
+    for (int i = 0; i < 6; i++) {
+      float a = float(i) * 1.0472;
+      glow += luma(texture2D(tDiffuse, vUv + vec2(cos(a), sin(a)) * 0.02).rgb);
+    }
+    col += vec3(0.6, 0.3, 0.9) * smoothstep(0.55, 1.0, glow / 6.0) * 0.35;
+
+    // A perspective grid rolling toward the viewer across the lower part of the frame.
+    float horizon = 0.46;
+    if (vUv.y < horizon) {
+      float depth = (horizon - vUv.y) / horizon;          // 0 at the horizon, 1 at the bottom
+      float z = 1.0 / max(depth, 0.02);
+      float x = (vUv.x - 0.5) * z * 0.9;
+      float lineX = smoothstep(0.08, 0.0, abs(fract(x) - 0.5) - 0.42) ;
+      float lineZ = smoothstep(0.08, 0.0, abs(fract(z * 0.5 - time * 0.6) - 0.5) - 0.42);
+      float grid = max(lineX, lineZ) * smoothstep(0.0, 0.25, depth) * 0.8;
+      col = mix(col, vec3(1.0, 0.3, 0.9), grid);
+    }
+
+    // Scanlines and a dreamy vignette.
+    col *= 0.92 + 0.08 * sin(vUv.y * resolution.y * 1.4);
+    vec2 d = vUv - 0.5;
+    col *= 1.0 - dot(d, d) * 0.5;
+    gl_FragColor = vec4(col, 1.0);
+  }
+`);
+
+/** Drunk: swaying double vision, a blur that comes and goes, and the occasional lurch. */
+const DrunkShader = simpleShader(/* glsl */ `
+  void main() {
+    float t = time;
+    // The room sways.
+    vec2 sway = vec2(sin(t * 0.9) * 0.012 + sin(t * 2.3) * 0.004, cos(t * 0.7) * 0.008);
+    // Every so often everything lurches.
+    float lurch = smoothstep(0.0, 0.15, fract(t * 0.21)) * (1.0 - smoothstep(0.15, 0.5, fract(t * 0.21)));
+    sway += vec2(sin(t * 9.0), cos(t * 7.0)) * 0.015 * lurch;
+    // Slow, slightly wobbling rotation around the centre.
+    float ang = sin(t * 0.5) * 0.03 + lurch * 0.03;
+    mat2 rot = mat2(cos(ang), -sin(ang), sin(ang), cos(ang));
+    vec2 c = rot * (vUv - 0.5) + 0.5 + sway;
+
+    // Double vision: the second image drifts apart and back, never quite settling.
+    vec2 split = vec2(sin(t * 0.6) * 0.02 + 0.012, cos(t * 0.45) * 0.008) * (1.0 + lurch);
+    float blur = 0.004 + 0.004 * (0.5 + 0.5 * sin(t * 1.3)) + lurch * 0.008;
+    vec3 a = vec3(0.0);
+    vec3 b = vec3(0.0);
+    for (int i = 0; i < 6; i++) {
+      float k = float(i) * 1.0472 + t;
+      vec2 o = vec2(cos(k), sin(k)) * blur;
+      a += texture2D(tDiffuse, c + o).rgb;
+      b += texture2D(tDiffuse, c + split + o).rgb;
+    }
+    vec3 col = (a + b) / 12.0;
+
+    // Washed out, a bit warm, and the edges fall away.
+    float l = luma(col);
+    col = mix(vec3(l), col, 0.85) * vec3(1.03, 1.0, 0.96);
+    vec2 d = vUv - 0.5;
+    col *= 1.0 - dot(d, d) * (0.9 + 0.4 * sin(t * 1.1));
+    gl_FragColor = vec4(col, 1.0);
+  }
+`);
+
 /** Looks that are one shader over the plain render. */
 const singlePassLooks: Partial<Record<EffectName, ReturnType<typeof simpleShader>>> = {
   oil: OilShader,
   film: OldFilmShader,
+  vaporwave: VaporwaveShader,
+  drunk: DrunkShader,
 };
 
 export interface EffectContext {
