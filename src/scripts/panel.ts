@@ -154,7 +154,6 @@ const formatters: Record<string, (v: Primitive) => string> = {
 export function initPanel(pizza: PizzaController) {
   const panel = document.getElementById('options');
   const toggle = document.getElementById('toggle-options');
-  const toast = document.querySelector<HTMLElement>('[data-toast]');
   if (!panel || !toggle) return;
 
   const inputs = Array.from(panel.querySelectorAll<HTMLInputElement | HTMLSelectElement>('[data-key]'));
@@ -215,29 +214,32 @@ export function initPanel(pizza: PizzaController) {
   }
 
   /* Actions */
-  let toastTimer = 0;
-  const notify = (message: string) => {
+  /* Little confirmation bubbles that hang off the button that was pressed. */
+  const toastTimers = new Map<string, number>();
+  const notify = (which: 'share' | 'reset', message?: string) => {
+    const toast = document.querySelector<HTMLElement>(`[data-toast="${which}"]`);
     if (!toast) return;
-    toast.textContent = message;
+    const text = toast.querySelector('[data-toast-text]');
+    if (text && message) text.textContent = message;
     toast.classList.add('show');
-    clearTimeout(toastTimer);
-    toastTimer = window.setTimeout(() => toast.classList.remove('show'), 1800);
+    clearTimeout(toastTimers.get(which));
+    toastTimers.set(which, window.setTimeout(() => toast.classList.remove('show'), 1800));
   };
 
   const share = async () => {
     const url = location.origin + urlFor(pizza.config);
     try {
       await navigator.clipboard.writeText(url);
-      notify('Link copied');
+      notify('share', 'Link copied');
     } catch {
-      notify(url);
+      notify('share', 'Copy failed');
     }
   };
 
   document.querySelectorAll('[data-action="share"]').forEach((el) => el.addEventListener('click', share));
   panel.querySelector('[data-action="reset"]')?.addEventListener('click', () => {
     apply({ ...defaultConfig, toppings: { ...defaultConfig.toppings } });
-    notify('Back to the house pizza');
+    notify('reset', 'Back to default');
   });
 
   /* Tabs: all focusable, arrows move between them, the dock animates to the new height. */
