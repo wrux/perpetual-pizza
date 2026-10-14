@@ -60,6 +60,9 @@ export const defaultConfig: PizzaConfig = {
   pixelSize: 6,
 };
 
+/** Start-up progress: a human caption and a 0..1 fraction. */
+export type ProgressCallback = (caption: string, fraction: number) => void;
+
 export interface PizzaController {
   config: PizzaConfig;
   update(patch: Partial<PizzaConfig>): void;
@@ -305,6 +308,131 @@ function pepperoniTexture(seed: number) {
   });
 }
 
+
+/** Planar bounds of an extruded topping, shared by its UV map and its painter. */
+interface Bounds {
+  minX: number;
+  maxX: number;
+  minY: number;
+  maxY: number;
+}
+
+/** Shape-space point for a canvas pixel (canvas rows run top-down, so v = 0 is maxY). */
+const shapePoint = (b: Bounds, u: number, v: number) => ({
+  x: b.minX + u * (b.maxX - b.minX),
+  y: b.maxY - v * (b.maxY - b.minY),
+});
+
+const MUSH_W = 0.06;
+const MUSH_BOUNDS: Bounds = { minX: -0.064, maxX: 0.064, minY: -0.062, maxY: 0.074 };
+
+const MUSH_FLESH = rgb('#ead9b8');
+const MUSH_SKIN = rgb('#a87a4c');
+const MUSH_RIM = rgb('#6b4728');
+const MUSH_GILL = rgb('#5c3c21');
+const MUSH_GILL_DARK = rgb('#3a2412');
+const MUSH_STEM = rgb('#f0e4cb');
+
+/** Face of a mushroom slice: pale cap with a brown skin, dark gills, fibrous stem. */
+function mushroomTexture(seed: number) {
+  const n = makeNoise(seed + 53, 128);
+  return paint(512, 512, (u, v) => {
+    const { x, y } = shapePoint(MUSH_BOUNDS, u, v);
+    const grain = n.fbm(x * 90 + 3, y * 90 + 7, 3, 0.5);
+    const blotch = n.fbm(x * 25 + 11, y * 25 + 2, 3, 0.5);
+
+    // Cap: upper half-ellipse. Gill line curves under it.
+    const capR = Math.sqrt((x / MUSH_W) ** 2 + (y / 0.07) ** 2);
+    const gillY = 0.004 - 0.016 * (1 - Math.min((x / MUSH_W) ** 2, 1));
+    const inGills = y < gillY + 0.009 && y > gillY - 0.006;
+
+    let color: Rgb;
+    let height: number;
+    let rough: number;
+    if (y >= gillY + 0.009 || (y >= 0 && capR <= 1.02)) {
+      // Cap flesh, browning toward the skin at the edge.
+      const edge = smoothstep(0.78, 1, capR);
+      const rim = smoothstep(0.93, 1, capR);
+      color = mixRgb(MUSH_FLESH, rgb('#d9c39a'), smoothstep(0.35, 0.7, grain));
+      color = mixRgb(color, MUSH_SKIN, edge * 0.85 + smoothstep(0.6, 0.75, blotch) * 0.3);
+      color = mixRgb(color, MUSH_RIM, rim * 0.8);
+      height = 0.55 + grain * 0.1 - edge * 0.25;
+      rough = 0.7 - edge * 0.1;
+    } else if (inGills) {
+      // Gills radiate from the cap centre.
+      const ang = Math.atan2(y - 0.03, x);
+      const line = Math.abs(Math.sin(ang * 60));
+      color = mixRgb(MUSH_GILL, MUSH_GILL_DARK, smoothstep(0.5, 0.95, line) * 0.8 + grain * 0.2);
+      height = 0.3 + (1 - line) * 0.1;
+      rough = 0.9;
+    } else {
+      // Stem: vertical fibres.
+      const fibre = n.fbm(x * 160 + 9, y * 12 + 4, 3, 0.5);
+      color = mixRgb(MUSH_STEM, rgb('#d4c2a0'), smoothstep(0.35, 0.7, fibre));
+      color = mixRgb(color, MUSH_SKIN, smoothstep(0.7, 0.85, blotch) * 0.25);
+      height = 0.5 + fibre * 0.12;
+      rough = 0.72;
+    }
+    return { color, height, rough };
+  });
+}
+
+const BASIL_BOUNDS: Bounds = { minX: -0.066, maxX: 0.066, minY: -0.071, maxY: 0.076 };
+const BASIL_DARK = rgb('#285a20');
+const BASIL_LIGHT = rgb('#4f8f36');
+const BASIL_VEIN = rgb('#a9d47e');
+const BASIL_VEIN_SOFT = rgb('#7fb35a');
+
+/** Basil leaf: two-tone green with a midrib and angled side veins. */
+function basilTexture(seed: number) {
+  const n = makeNoise(seed + 61, 128);
+  return paint(512, 512, (u, v) => {
+    const { x, y } = shapePoint(BASIL_BOUNDS, u, v);
+    const t = clamp01((y + 0.07) / 0.145); // 0 stem end .. 1 tip
+    const mottle = n.fbm(x * 40 + 5, y * 40 + 9, 4, 0.5);
+    const cells = n.fbm(x * 140 + 1, y * 140 + 3, 2, 0.5);
+
+    let color = mixRgb(BASIL_DARK, BASIL_LIGHT, smoothstep(0.3, 0.75, mottle) * 0.8 + cells * 0.2);
+
+    // Midrib, tapering to the tip.
+    const midW = 0.0028 * (1 - t * 0.8) + 0.0006;
+    const mid = 1 - smoothstep(midW * 0.5, midW, Math.abs(x));
+    // Side veins leave the midrib every 14mm and sweep toward the tip.
+    const along = y - Math.abs(x) * 0.65 + 0.05;
+    const frac = ((along % 0.014) + 0.014) % 0.014;
+    const veinD = Math.min(frac, 0.014 - frac);
+    const side = (1 - smoothstep(0.0005, 0.0013, veinD)) * (1 - smoothstep(0.02, 0.06, Math.abs(x))) * (Math.abs(x) > midW ? 1 : 0);
+
+    color = mixRgb(color, BASIL_VEIN_SOFT, side * 0.7);
+    color = mixRgb(color, BASIL_VEIN, mid);
+
+    const height = 0.45 + mottle * 0.08 + mid * 0.35 + side * 0.15;
+    const rough = 0.42 - mid * 0.1;
+    return { color, height, rough };
+  });
+}
+
+const OLIVE_SKIN = rgb('#1f1718');
+const OLIVE_CUT = rgb('#3d2a2c');
+const OLIVE_CUT_LIGHT = rgb('#5a3f3f');
+
+/** Lathe-mapped olive ring: v runs around the profile, outer skin in the middle. */
+function oliveTexture(seed: number) {
+  const n = makeNoise(seed + 71, 64);
+  return paint(256, 64, (u, v) => {
+    const x = u * 24;
+    const y = v * 6;
+    const grain = n.fbm(x, y, 3, 0.5);
+    // Profile: inner wall (0..0.1), bottom cut (0.1..0.3), skin (0.3..0.7), top cut, inner wall.
+    const skin = smoothstep(0.27, 0.33, v) * (1 - smoothstep(0.67, 0.73, v));
+    const inner = 1 - smoothstep(0.08, 0.12, Math.min(v, 1 - v));
+    let color = mixRgb(OLIVE_CUT, OLIVE_CUT_LIGHT, smoothstep(0.35, 0.7, grain) * 0.8);
+    color = mixRgb(color, OLIVE_SKIN, skin);
+    color = mixRgb(color, rgb('#2a1d1f'), inner * 0.6);
+    return { color, height: 0.5 + grain * 0.2 - skin * 0.1, rough: mix(0.5, 0.22, skin) };
+  });
+}
+
 /* ------------------------------------------------------------------ */
 /* Geometry                                                            */
 /* ------------------------------------------------------------------ */
@@ -344,84 +472,127 @@ function crustGeometry(seed: number) {
   return geo;
 }
 
-/** Cupped pepperoni slice. */
-function pepperoniGeometry() {
-  const pts: THREE.Vector2[] = [];
-  const R = 0.066;
-  // Top surface, centre to rim (cupping up at the edge).
-  for (let i = 0; i <= 12; i++) {
-    const t = i / 12;
-    pts.push(new THREE.Vector2(t * R, 0.006 + Math.pow(t, 2.5) * 0.02));
+/** Project an extruded shape's UVs onto its planar bounds so a painted face texture lines up. */
+function planarUVs(geo: THREE.BufferGeometry, b: Bounds) {
+  const pos = geo.attributes.position as THREE.BufferAttribute;
+  const uv = geo.attributes.uv as THREE.BufferAttribute;
+  for (let i = 0; i < pos.count; i++) {
+    uv.setXY(i, (pos.getX(i) - b.minX) / (b.maxX - b.minX), (pos.getY(i) - b.minY) / (b.maxY - b.minY));
   }
-  pts.push(new THREE.Vector2(R + 0.004, 0.006 + 0.016));
-  // Underside, rim back to centre.
-  for (let i = 12; i >= 0; i--) {
-    const t = i / 12;
-    pts.push(new THREE.Vector2(t * R, Math.pow(t, 2.5) * 0.02 - 0.002));
+  uv.needsUpdate = true;
+  return geo;
+}
+
+/** Scale a lathe's radius around its axis by a periodic noise so the outline isn't a perfect circle. */
+function roughenOutline(geo: THREE.BufferGeometry, seed: number, amount: number) {
+  const n = makeNoise(seed);
+  const pos = geo.attributes.position as THREE.BufferAttribute;
+  for (let i = 0; i < pos.count; i++) {
+    const x = pos.getX(i);
+    const z = pos.getZ(i);
+    const a = Math.atan2(z, x);
+    const s = 1 + (n.fbm(Math.cos(a) * 2.5 + 5, Math.sin(a) * 2.5 + 5, 2, 0.5) - 0.5) * amount;
+    pos.setX(i, x * s);
+    pos.setZ(i, z * s);
   }
-  const geo = new THREE.LatheGeometry(pts, 36);
   geo.computeVertexNormals();
   return geo;
 }
 
-/** Flat mushroom slice: domed cap with a stem, as an extruded outline. */
+/** Cupped pepperoni slice with a slightly irregular edge. */
+function pepperoniGeometry(seed: number) {
+  const pts: THREE.Vector2[] = [];
+  const R = 0.066;
+  // Top surface, centre to rim (cupping up at the edge).
+  for (let i = 0; i <= 14; i++) {
+    const t = i / 14;
+    pts.push(new THREE.Vector2(t * R, 0.007 + Math.pow(t, 2.5) * 0.022));
+  }
+  pts.push(new THREE.Vector2(R + 0.005, 0.007 + 0.018));
+  pts.push(new THREE.Vector2(R + 0.004, 0.007 + 0.01));
+  // Underside, rim back to centre.
+  for (let i = 14; i >= 0; i--) {
+    const t = i / 14;
+    pts.push(new THREE.Vector2(t * R, Math.pow(t, 2.5) * 0.022 - 0.002));
+  }
+  return roughenOutline(new THREE.LatheGeometry(pts, 48), seed + 81, 0.14);
+}
+
+/** Flat mushroom slice outline: domed cap with a stem. */
 function mushroomShape() {
   const s = new THREE.Shape();
-  const w = 0.06; // half cap width
+  const w = MUSH_W;
   s.moveTo(-w, 0);
   s.bezierCurveTo(-w, 0.045, -w * 0.45, 0.07, 0, 0.07);
   s.bezierCurveTo(w * 0.45, 0.07, w, 0.045, w, 0);
-  s.lineTo(w * 0.4, -0.005);
-  s.lineTo(w * 0.3, -0.05);
-  s.quadraticCurveTo(0, -0.058, -w * 0.3, -0.05);
-  s.lineTo(-w * 0.4, -0.005);
+  s.lineTo(w * 0.42, -0.004);
+  s.bezierCurveTo(w * 0.4, -0.03, w * 0.34, -0.05, w * 0.3, -0.056);
+  s.quadraticCurveTo(0, -0.064, -w * 0.3, -0.056);
+  s.bezierCurveTo(-w * 0.34, -0.05, -w * 0.4, -0.03, -w * 0.42, -0.004);
   s.closePath();
   return s;
 }
 
-/** The dark gill line along the underside of the cap. */
-function gillShape() {
-  const s = new THREE.Shape();
-  const w = 0.058;
-  s.moveTo(-w, 0.004);
-  s.quadraticCurveTo(0, -0.012, w, 0.004);
-  s.lineTo(w, -0.002);
-  s.quadraticCurveTo(0, -0.02, -w, -0.002);
-  s.closePath();
-  return s;
+function mushroomGeometry() {
+  const geo = new THREE.ExtrudeGeometry(mushroomShape(), {
+    depth: 0.011,
+    bevelEnabled: true,
+    bevelThickness: 0.003,
+    bevelSize: 0.003,
+    bevelSegments: 3,
+  });
+  return planarUVs(geo, MUSH_BOUNDS);
 }
 
-/** Brown skin along the curved top of the cap. */
-function mushroomSkinShape() {
-  const s = new THREE.Shape();
-  const w = 0.06;
-  const d = 0.009;
-  s.moveTo(-w, 0);
-  s.bezierCurveTo(-w, 0.045, -w * 0.45, 0.07, 0, 0.07);
-  s.bezierCurveTo(w * 0.45, 0.07, w, 0.045, w, 0);
-  s.lineTo(w - d, 0);
-  s.bezierCurveTo(w - d, 0.038, w * 0.42, 0.07 - d, 0, 0.07 - d);
-  s.bezierCurveTo(-w * 0.42, 0.07 - d, -(w - d), 0.038, -(w - d), 0);
-  s.closePath();
-  return s;
-}
-
-function basilVeinShape() {
-  const s = new THREE.Shape();
-  s.moveTo(-0.002, -0.062);
-  s.lineTo(0.002, -0.062);
-  s.lineTo(0.0008, 0.06);
-  s.lineTo(-0.0008, 0.06);
-  s.closePath();
-  return s;
-}
-
+/** Basil leaf outline with a gently wavy edge and a pointed tip. */
 function basilShape() {
   const s = new THREE.Shape();
-  s.moveTo(0, -0.07);
-  s.bezierCurveTo(0.06, -0.05, 0.065, 0.03, 0, 0.075);
-  s.bezierCurveTo(-0.065, 0.03, -0.06, -0.05, 0, -0.07);
+  const L = 0.145;
+  const pts: THREE.Vector2[] = [];
+  const half = (t: number, side: number) => {
+    const w = 0.064 * Math.pow(Math.sin(Math.PI * Math.pow(t, 0.85)), 0.9);
+    const wave = 1 + 0.05 * Math.sin(t * 34 + side * 1.3);
+    return new THREE.Vector2(side * w * wave, -0.07 + t * L);
+  };
+  for (let i = 0; i <= 40; i++) pts.push(half(i / 40, 1));
+  for (let i = 39; i >= 1; i--) pts.push(half(i / 40, -1));
+  s.moveTo(pts[0].x, pts[0].y);
+  for (const p of pts.slice(1)) s.lineTo(p.x, p.y);
+  s.closePath();
   return s;
+}
+
+function basilGeometry() {
+  const geo = new THREE.ExtrudeGeometry(basilShape(), { depth: 0.0022, bevelEnabled: false, curveSegments: 24 });
+  planarUVs(geo, BASIL_BOUNDS);
+  // Curl: edges and tip lift away from the cheese.
+  const pos = geo.attributes.position as THREE.BufferAttribute;
+  for (let i = 0; i < pos.count; i++) {
+    const x = pos.getX(i);
+    const y = pos.getY(i);
+    const lift = 0.016 * Math.pow(Math.abs(x) / 0.064, 2) + 0.012 * Math.pow(Math.max(y, 0) / 0.075, 2.5);
+    pos.setZ(i, pos.getZ(i) + lift);
+  }
+  geo.computeVertexNormals();
+  return geo;
+}
+
+/** Sliced black olive: a flat ring with rounded edges, slightly out of round. */
+function oliveGeometry(seed: number) {
+  const pts = [
+    [0.017, -0.006],
+    [0.022, -0.0078],
+    [0.034, -0.0078],
+    [0.039, -0.004],
+    [0.04, 0],
+    [0.039, 0.004],
+    [0.034, 0.0078],
+    [0.022, 0.0078],
+    [0.017, 0.006],
+    [0.015, 0],
+    [0.017, -0.006],
+  ].map(([x, y]) => new THREE.Vector2(x, y));
+  return roughenOutline(new THREE.LatheGeometry(pts, 36), seed + 91, 0.12);
 }
 
 /** Bilinear sample of a painted height map. u, v in 0..1 with v running top-down like the canvas. */
@@ -469,24 +640,60 @@ interface PaintedSet {
   cheese: Painted;
   crust: Painted;
   pepperoni: Painted;
+  mushroom: Painted;
+  basil: Painted;
+  olive: Painted;
 }
 
 /** Painting textures is the slow part of a rebuild, so keep the last set unless the seed changes. */
 let paintedCache: PaintedSet | null = null;
+/** Let the browser paint a frame between heavy steps. */
+const breathe = () => new Promise<void>((resolve) => requestAnimationFrame(() => setTimeout(resolve, 0)));
+
+/** Fill the texture cache one texture at a time, reporting progress, so a loader can animate. */
+async function prepaint(seed: number, report: ProgressCallback) {
+  if (paintedCache && paintedCache.seed === seed) return;
+  const steps: Array<[string, keyof Omit<PaintedSet, 'seed'>, (seed: number) => Painted]> = [
+    ['Stretching the dough', 'crust', crustTexture],
+    ['Spreading sauce and grating cheese', 'cheese', cheeseTexture],
+    ['Slicing pepperoni', 'pepperoni', pepperoniTexture],
+    ['Chopping mushrooms', 'mushroom', mushroomTexture],
+    ['Picking basil', 'basil', basilTexture],
+    ['Pitting olives', 'olive', oliveTexture],
+  ];
+  const partial: Partial<PaintedSet> = { seed };
+  for (let i = 0; i < steps.length; i++) {
+    const [caption, key, make] = steps[i];
+    report(caption, i / (steps.length + 1));
+    await breathe();
+    partial[key] = make(seed);
+  }
+  paintedCache = partial as PaintedSet;
+}
+
 function paintedFor(seed: number): PaintedSet {
   if (paintedCache && paintedCache.seed === seed) return paintedCache;
   if (paintedCache) {
-    for (const set of [paintedCache.cheese, paintedCache.crust, paintedCache.pepperoni]) {
+    const { cheese, crust, pepperoni, mushroom, basil, olive } = paintedCache;
+    for (const set of [cheese, crust, pepperoni, mushroom, basil, olive]) {
       set.map.dispose();
       set.bumpMap.dispose();
       set.roughnessMap.dispose();
     }
   }
-  paintedCache = { seed, cheese: cheeseTexture(seed), crust: crustTexture(seed), pepperoni: pepperoniTexture(seed) };
+  paintedCache = {
+    seed,
+    cheese: cheeseTexture(seed),
+    crust: crustTexture(seed),
+    pepperoni: pepperoniTexture(seed),
+    mushroom: mushroomTexture(seed),
+    basil: basilTexture(seed),
+    olive: oliveTexture(seed),
+  };
   return paintedCache;
 }
 
-type MaterialParams = THREE.MeshStandardMaterialParameters;
+type MaterialParams = THREE.MeshPhysicalMaterialParameters;
 
 /** Four-band gradient for toon shading. */
 function toonGradient() {
@@ -503,9 +710,9 @@ function buildPizza(config: PizzaConfig, assets: Assets): THREE.Group {
   const toon = usesToonMaterials(config.effect);
   const gradient = toon ? toonGradient() : null;
   if (gradient) assets.textures.push(gradient);
-  /** Standard PBR material, or a flat toon one when the cartoon look is on. */
-  const material = (params: MaterialParams): THREE.Material => {
-    if (!toon) return new THREE.MeshStandardMaterial(params);
+  /** PBR material (physical when a clearcoat is wanted), or a flat toon one when the cartoon look is on. */
+  const material = (params: MaterialParams, physical = false): THREE.Material => {
+    if (!toon) return physical ? new THREE.MeshPhysicalMaterial(params) : new THREE.MeshStandardMaterial(params);
     // Flat shading reads better without the bump detail, and three warns on undefined params.
     const picked: THREE.MeshToonMaterialParameters = { gradientMap: gradient };
     if (params.color !== undefined) picked.color = params.color;
@@ -597,35 +804,68 @@ function buildPizza(config: PizzaConfig, assets: Assets): THREE.Group {
 
   /* Topping assets. */
   const pepMaps = painted.pepperoni;
-  const pepGeo = geo(pepperoniGeometry());
+  const pepGeo = geo(pepperoniGeometry(config.seed));
   const pepMat = mat(
+    material(
+      {
+        map: pepMaps.map,
+        bumpMap: pepMaps.bumpMap,
+        bumpScale: 0.8,
+        roughnessMap: pepMaps.roughnessMap,
+        roughness: 1,
+        envMapIntensity: 1.2,
+        clearcoat: 0.35,
+        clearcoatRoughness: 0.4,
+      },
+      true,
+    ),
+  );
+
+  const mushMaps = painted.mushroom;
+  const mushGeo = geo(mushroomGeometry());
+  const mushFace = mat(
     material({
-      map: pepMaps.map,
-      bumpMap: pepMaps.bumpMap,
-      bumpScale: 0.6,
-      roughnessMap: pepMaps.roughnessMap,
+      map: mushMaps.map,
+      bumpMap: mushMaps.bumpMap,
+      bumpScale: 0.5,
+      roughnessMap: mushMaps.roughnessMap,
       roughness: 1,
-      envMapIntensity: 1.2,
+      envMapIntensity: 0.5,
+    }),
+  );
+  const mushSide = mat(material({ color: '#dcc7a2', roughness: 0.8, envMapIntensity: 0.4 }));
+
+  const basilMaps = painted.basil;
+  const basilGeo = geo(basilGeometry());
+  const basilMat = mat(
+    material({
+      map: basilMaps.map,
+      bumpMap: basilMaps.bumpMap,
+      bumpScale: 0.4,
+      roughnessMap: basilMaps.roughnessMap,
+      roughness: 1,
+      envMapIntensity: 1,
+      side: THREE.DoubleSide,
     }),
   );
 
-  const extrude = { depth: 0.01, bevelEnabled: true, bevelThickness: 0.003, bevelSize: 0.003, bevelSegments: 2 };
-  const mushGeo = geo(new THREE.ExtrudeGeometry(mushroomShape(), extrude));
-  const gillGeo = geo(new THREE.ExtrudeGeometry(gillShape(), { depth: 0.002, bevelEnabled: false }));
-  const skinGeo = geo(new THREE.ExtrudeGeometry(mushroomSkinShape(), { depth: 0.002, bevelEnabled: false }));
-  const skinMat = mat(material({ color: '#7a5533', roughness: 0.8 }));
-  const mushMat = mat(material({ color: '#b8956a', roughness: 0.7, envMapIntensity: 0.5 }));
-  const gillMat = mat(material({ color: '#4a2c14', roughness: 0.9 }));
-
-  const basilGeo = geo(new THREE.ExtrudeGeometry(basilShape(), { depth: 0.003, bevelEnabled: false }));
-  const veinGeo = geo(new THREE.ExtrudeGeometry(basilVeinShape(), { depth: 0.001, bevelEnabled: false }));
-  const veinMat = mat(material({ color: '#79a84e', roughness: 0.5 }));
-  const basilMat = mat(
-    material({ color: '#2b6424', roughness: 0.4, envMapIntensity: 0.8, side: THREE.DoubleSide }),
+  const oliveMaps = painted.olive;
+  const oliveGeo = geo(oliveGeometry(config.seed));
+  const oliveMat = mat(
+    material(
+      {
+        map: oliveMaps.map,
+        bumpMap: oliveMaps.bumpMap,
+        bumpScale: 0.3,
+        roughnessMap: oliveMaps.roughnessMap,
+        roughness: 1,
+        envMapIntensity: 1.2,
+        clearcoat: 0.6,
+        clearcoatRoughness: 0.25,
+      },
+      true,
+    ),
   );
-
-  const oliveGeo = geo(new THREE.TorusGeometry(0.038, 0.016, 10, 24));
-  const oliveMat = mat(material({ color: '#2a2222', roughness: 0.35, envMapIntensity: 1 }));
 
   const placed: Array<{ x: number; z: number; r: number }> = [];
   const minR = holeRadius + 0.1;
@@ -662,43 +902,36 @@ function buildPizza(config: PizzaConfig, assets: Assets): THREE.Group {
   addTopping(t.pepperoni, 0.07, (x, z) => {
     const m = new THREE.Mesh(pepGeo, pepMat);
     const s = 0.8 + rng() * 0.45;
-    m.scale.set(s, 1, s * (0.9 + rng() * 0.2));
+    // Varied cupping: some slices lie flat, some curl up into little cups.
+    m.scale.set(s, 0.7 + rng() * 0.7, s * (0.92 + rng() * 0.16));
     m.position.set(x, surfaceAt(x, z) + 0.002, z);
     m.rotation.set((rng() - 0.5) * 0.15, rng() * Math.PI * 2, (rng() - 0.5) * 0.15);
     return m;
   });
   addTopping(t.mushroom, 0.075, (x, z) => {
-    const g = new THREE.Group();
-    const slice = new THREE.Mesh(mushGeo, mushMat);
-    const gill = new THREE.Mesh(gillGeo, gillMat);
-    const skin = new THREE.Mesh(skinGeo, skinMat);
-    gill.position.z = skin.position.z = extrude.depth + extrude.bevelThickness - 0.0005;
-    g.add(slice, gill, skin);
-    g.rotation.x = -Math.PI / 2 + (rng() - 0.5) * 0.25;
-    g.rotation.z = rng() * Math.PI * 2;
+    const m = new THREE.Mesh(mushGeo, [mushFace, mushSide]);
+    m.rotation.x = -Math.PI / 2 + (rng() - 0.5) * 0.3;
+    m.rotation.z = rng() * Math.PI * 2;
     const s = 0.62 + rng() * 0.3;
-    g.scale.setScalar(s);
-    g.position.set(x, surfaceAt(x, z) + 0.004, z);
-    return g;
+    m.scale.setScalar(s);
+    m.position.set(x, surfaceAt(x, z) + 0.004, z);
+    return m;
   });
   addTopping(t.basil, 0.07, (x, z) => {
-    const m = new THREE.Group();
-    const leaf = new THREE.Mesh(basilGeo, basilMat);
-    const vein = new THREE.Mesh(veinGeo, veinMat);
-    vein.position.z = 0.003;
-    m.add(leaf, vein);
-    m.rotation.x = -Math.PI / 2 + (rng() - 0.5) * 0.4;
+    const m = new THREE.Mesh(basilGeo, basilMat);
+    m.rotation.x = -Math.PI / 2 + (rng() - 0.5) * 0.3;
     m.rotation.z = rng() * Math.PI * 2;
     const s = 0.7 + rng() * 0.3;
     m.scale.setScalar(s);
-    m.position.set(x, surfaceAt(x, z) + 0.006, z);
+    m.position.set(x, surfaceAt(x, z) + 0.004, z);
     return m;
   });
   addTopping(t.olive, 0.045, (x, z) => {
     const m = new THREE.Mesh(oliveGeo, oliveMat);
-    m.rotation.x = Math.PI / 2 + (rng() - 0.5) * 0.2;
-    m.scale.y = 0.6;
-    m.position.set(x, surfaceAt(x, z) + 0.01, z);
+    m.rotation.set((rng() - 0.5) * 0.25, rng() * Math.PI * 2, (rng() - 0.5) * 0.25);
+    const s = 0.85 + rng() * 0.3;
+    m.scale.set(s, 1, s);
+    m.position.set(x, surfaceAt(x, z) + 0.009, z);
     return m;
   });
 
@@ -709,7 +942,11 @@ function buildPizza(config: PizzaConfig, assets: Assets): THREE.Group {
 /* Scene                                                               */
 /* ------------------------------------------------------------------ */
 
-export function createPizza(canvas: HTMLCanvasElement, initial: Partial<PizzaConfig> = {}): PizzaController {
+export async function createPizza(
+  canvas: HTMLCanvasElement,
+  initial: Partial<PizzaConfig> = {},
+  onProgress: ProgressCallback = () => {},
+): Promise<PizzaController> {
   const config: PizzaConfig = { ...defaultConfig, ...initial, toppings: { ...defaultConfig.toppings, ...initial.toppings } };
 
   const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
@@ -820,6 +1057,7 @@ export function createPizza(canvas: HTMLCanvasElement, initial: Partial<PizzaCon
     }
   }
 
+  await prepaint(config.seed, onProgress);
   rebuild();
 
   /* Camera framing */
@@ -887,6 +1125,13 @@ export function createPizza(canvas: HTMLCanvasElement, initial: Partial<PizzaCon
     transition.tick(now);
     pipeline.composer.render();
   }
+  // Warm the shaders before the first frame so the reveal doesn't stutter.
+  onProgress('Into the oven', 6 / 7);
+  await breathe();
+  await renderer.compileAsync(scene, camera);
+  pipeline.composer.render();
+  onProgress('Ready', 1);
+
   raf = requestAnimationFrame(frame);
 
   return {

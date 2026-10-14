@@ -1,8 +1,10 @@
 ---
+import Loading from './Loading.astro';
 import Options from './Options.astro';
 ---
 
 <canvas id="pizza" class="pizza" aria-label="The never ending digital pizza"></canvas>
+<Loading />
 <Options />
 
 <script>
@@ -10,8 +12,21 @@ import Options from './Options.astro';
   import { initPanel, optionsFromUrl } from '../scripts/panel';
 
   const canvas = document.getElementById('pizza') as HTMLCanvasElement;
-  const pizza = createPizza(canvas, optionsFromUrl());
+  const loader = document.getElementById('loading');
+  const caption = loader?.querySelector<HTMLElement>('[data-caption]');
+  const bar = loader?.querySelector<HTMLElement>('[data-bar]');
+
+  const pizza = await createPizza(canvas, optionsFromUrl(), (text, fraction) => {
+    if (caption) caption.textContent = text;
+    if (bar) bar.style.transform = `scaleX(${fraction})`;
+  });
   initPanel(pizza);
+
+  // Lift the loader once the first frame is on screen.
+  requestAnimationFrame(() => {
+    loader?.classList.add('done');
+    loader?.addEventListener('transitionend', () => loader.remove(), { once: true });
+  });
 
   // Handy for poking at from the console.
   (window as unknown as { pizza: typeof pizza }).pizza = pizza;
