@@ -1,0 +1,91 @@
+<div id="loading" class="loading" role="status" aria-live="polite">
+  <svg class="loading__pizza" viewBox="0 0 64 64" aria-hidden="true" xmlns="http://www.w3.org/2000/svg">
+    <circle cx="32" cy="32" r="30" fill="#d9944a" />
+    <circle cx="32" cy="32" r="24" fill="#f3cf6b" />
+    <circle cx="21" cy="22" r="4.2" fill="#c4342b" />
+    <circle cx="44" cy="20" r="4.2" fill="#c4342b" />
+    <circle cx="47" cy="40" r="4.2" fill="#c4342b" />
+    <circle cx="19" cy="42" r="4.2" fill="#c4342b" />
+    <circle cx="33" cy="50" r="4.2" fill="#c4342b" />
+    <path d="M27 36c3-1 4-5 7-5" stroke="#4f7d2e" stroke-width="2.4" stroke-linecap="round" fill="none" />
+    <circle cx="32" cy="32" r="7.5" fill="#d9944a" />
+    <circle cx="32" cy="32" r="5.5" fill="#f3cf6b" />
+    <circle cx="30" cy="30.5" r="1.2" fill="#c4342b" />
+    <circle cx="34.5" cy="33" r="1.2" fill="#c4342b" />
+    <circle cx="32" cy="32" r="1.6" fill="#d9944a" />
+  </svg>
+  <div class="loading__bar" aria-hidden="true"><div class="loading__fill" data-bar></div></div>
+  <p class="loading__caption" data-caption>Preheating the oven</p>
+</div>
+
+<style>
+  .loading {
+    position: fixed;
+    inset: 0;
+    z-index: 20;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 1.25rem;
+    background: #140802;
+    color: #fff;
+    transition:
+      opacity 500ms ease,
+      visibility 0s linear 500ms;
+  }
+
+  .loading.done {
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
+  }
+
+  .loading__pizza {
+    width: 3.5rem;
+    height: 3.5rem;
+    /* A transform animation keeps running on the compositor while the main thread paints textures. */
+    animation: loading-breathe 1.6s ease-in-out infinite;
+  }
+
+  .loading__bar {
+    width: 9rem;
+    height: 2px;
+    border-radius: 1px;
+    background: rgba(255, 255, 255, 0.15);
+    overflow: hidden;
+  }
+
+  .loading__fill {
+    width: 100%;
+    height: 100%;
+    background: #fff;
+    transform: scaleX(0);
+    transform-origin: left;
+    transition: transform 300ms ease;
+  }
+
+  .loading__caption {
+    margin: 0;
+    font-size: 0.8rem;
+    font-weight: 500;
+    letter-spacing: 0.02em;
+    color: rgba(255, 255, 255, 0.55);
+  }
+
+  @keyframes loading-breathe {
+    0%,
+    100% {
+      transform: scale(1);
+    }
+    50% {
+      transform: scale(1.08);
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .loading__pizza {
+      animation: none;
+    }
+  }
+</style>
