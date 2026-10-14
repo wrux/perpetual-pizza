@@ -58,35 +58,37 @@ const tabs = [
   </nav>
 </div>
 
-<aside id="options" class="dock" aria-label="Customise the pizza">
-  <div class="dock__bar">
-    <div class="dock__tabs" role="tablist" aria-label="Sections">
-      {
-        tabs.map((t, i) => (
-          <button
-            type="button"
-            role="tab"
-            id={`tab-${t.id}`}
-            class="dock__tab"
-            data-tab={t.id}
-            aria-selected={i === 0 ? 'true' : 'false'}
-            aria-controls={`pane-${t.id}`}
-            tabindex={i === 0 ? 0 : -1}
-          >
-            {t.label}
-          </button>
-        ))
-      }
-    </div>
+<aside id="options" class="dock" role="dialog" aria-labelledby="options-title">
+  <div class="dock__grip" aria-hidden="true"></div>
+  <header class="dock__header">
+    <h2 id="options-title" class="dock__title">Customise</h2>
     <div class="dock__actions">
-      <button type="button" class="dock__action dock__action--reset" data-action="reset" aria-label="Reset to defaults" title="Reset to defaults">
+      <button type="button" class="dock__action" data-action="reset">
         <svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 3-6.7M3 4v5h5" /></svg>
-        <span>Reset</span>
+        Reset
       </button>
       <button type="button" class="dock__action dock__action--icon" data-action="close" aria-label="Close">
         <svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18" /></svg>
       </button>
     </div>
+  </header>
+
+  <div class="dock__tabs" role="tablist" aria-label="Sections">
+    {
+      tabs.map((t, i) => (
+        <button
+          type="button"
+          role="tab"
+          id={`tab-${t.id}`}
+          class="dock__tab"
+          data-tab={t.id}
+          aria-selected={i === 0 ? 'true' : 'false'}
+          aria-controls={`pane-${t.id}`}
+        >
+          {t.label}
+        </button>
+      ))
+    }
   </div>
 
   <form class="dock__panes" autocomplete="off">
@@ -96,20 +98,20 @@ const tabs = [
           EFFECTS.map((e) => (
             <label class="look">
               <input type="radio" name="effect" value={e} data-key="effect" />
-              <span class={`look__swatch look__swatch--${e}`} aria-hidden="true" />
+              <span class={`look__swatch look__swatch--${e}`} data-look-preview={e} aria-hidden="true" />
               <span class="look__name">{effectLabels[e]}</span>
             </label>
           ))
         }
       </div>
-      <div class="row">
+      <div class="grid">
         <label class="field" data-show-for="pixelate gameboy">
           <span class="field__label">Pixel size <output data-output="pixelSize"></output></span>
-          <input type="range" data-key="pixelSize" min="2" max="24" step="1" />
+          <span class="field__control"><input type="range" data-key="pixelSize" min="2" max="24" step="1" /></span>
         </label>
-        <label class="field field--inline">
+        <label class="field">
           <span class="field__label">Shadows</span>
-          <input type="checkbox" class="switch" data-key="shadows" />
+          <span class="field__control"><input type="checkbox" class="switch" data-key="shadows" /></span>
         </label>
       </div>
     </section>
@@ -118,18 +120,20 @@ const tabs = [
       <div class="grid">
         <label class="field">
           <span class="field__label">Speed <output data-output="speed"></output></span>
-          <input type="range" data-key="speed" min="0.25" max="4" step="0.05" />
+          <span class="field__control"><input type="range" data-key="speed" min="0.25" max="4" step="0.05" /></span>
         </label>
         <label class="field">
           <span class="field__label">Spin <output data-output="spinTurns"></output></span>
-          <input type="range" data-key="spinTurns" min="-1" max="1" step="0.05" />
+          <span class="field__control"><input type="range" data-key="spinTurns" min="-1" max="1" step="0.05" /></span>
         </label>
         <div class="field">
           <span class="field__label">Direction</span>
-          <div class="segment" role="radiogroup" aria-label="Direction">
-            <label><input type="radio" name="direction" value="1" data-key="direction" /><span>Zoom in</span></label>
-            <label><input type="radio" name="direction" value="-1" data-key="direction" /><span>Zoom out</span></label>
-          </div>
+          <span class="field__control">
+            <span class="segment" role="radiogroup" aria-label="Direction">
+              <label><input type="radio" name="direction" value="1" data-key="direction" /><span>Zoom in</span></label>
+              <label><input type="radio" name="direction" value="-1" data-key="direction" /><span>Zoom out</span></label>
+            </span>
+          </span>
         </div>
       </div>
     </section>
@@ -138,37 +142,39 @@ const tabs = [
       <div class="grid">
         <label class="field">
           <span class="field__label">Angle <output data-output="elevation"></output></span>
-          <input type="range" data-key="elevation" min="15" max="90" step="1" />
+          <span class="field__control"><input type="range" data-key="elevation" min="15" max="90" step="1" /></span>
         </label>
         <label class="field">
           <span class="field__label">Lens <output data-output="fov"></output></span>
-          <input type="range" data-key="fov" min="25" max="80" step="1" />
+          <span class="field__control"><input type="range" data-key="fov" min="25" max="80" step="1" /></span>
         </label>
       </div>
     </section>
 
     <section id="pane-toppings" class="dock__pane" role="tabpanel" aria-labelledby="tab-toppings" data-pane="toppings" hidden>
       <div class="grid grid--toppings">
-        <label class="field topping">
-          <svg class="topping__icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9" fill="#c4342b" /><circle cx="9" cy="10" r="1.3" fill="#8c1d18" /><circle cx="14" cy="14" r="1.3" fill="#8c1d18" /><circle cx="13.5" cy="8.5" r="1" fill="#e8907f" /></svg>
-          <span class="field__label">Pepperoni <output data-output="toppings.pepperoni"></output></span>
-          <input type="range" data-key="toppings.pepperoni" min="0" max="40" step="1" />
-        </label>
-        <label class="field topping">
-          <svg class="topping__icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 11a8 7 0 0 1 16 0H4z" fill="#d9bc90" /><path d="M4 11h16" stroke="#6b4728" stroke-width="1.6" /><path d="M9 12h6l-1 8h-4z" fill="#f0e4cb" /></svg>
-          <span class="field__label">Mushroom <output data-output="toppings.mushroom"></output></span>
-          <input type="range" data-key="toppings.mushroom" min="0" max="40" step="1" />
-        </label>
-        <label class="field topping">
-          <svg class="topping__icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3c6 2 8 8 4 14-3 4-9 4-11 0C2 11 6 4 12 3z" fill="#3f7d2e" /><path d="M12 4v15" stroke="#a9d47e" stroke-width="1.2" /></svg>
-          <span class="field__label">Basil <output data-output="toppings.basil"></output></span>
-          <input type="range" data-key="toppings.basil" min="0" max="40" step="1" />
-        </label>
-        <label class="field topping">
-          <svg class="topping__icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9" fill="#2a2222" /><circle cx="12" cy="12" r="3.5" fill="#f3cf6b" /><circle cx="9" cy="8" r="1.5" fill="#5a3f3f" /></svg>
-          <span class="field__label">Olives <output data-output="toppings.olive"></output></span>
-          <input type="range" data-key="toppings.olive" min="0" max="40" step="1" />
-        </label>
+        {
+          (
+            [
+              ['pepperoni', 'Pepperoni'],
+              ['mushroom', 'Mushroom'],
+              ['basil', 'Basil'],
+              ['olive', 'Olives'],
+              ['jalapeno', 'Jalapeño'],
+              ['ham', 'Ham'],
+            ] as const
+          ).map(([key, label]) => (
+            <label class="field topping">
+              <span class="topping__icon" data-topping-preview={key} aria-hidden="true" />
+              <span class="field__label">
+                {label} <output data-output={`toppings.${key}`} />
+              </span>
+              <span class="field__control">
+                <input type="range" data-key={`toppings.${key}`} min="0" max="40" step="1" />
+              </span>
+            </label>
+          ))
+        }
       </div>
       <button type="button" class="dock__button" data-action="shuffle">
         <svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 3h5v5M4 20L21 3M21 16v5h-5M15 15l6 6M4 4l5 5" /></svg>
@@ -344,16 +350,16 @@ const tabs = [
 
   /* ---- Dock ---------------------------------------------------------- */
   .dock {
-    --pad: 1rem;
+    --pad: 1.1rem;
 
     position: fixed;
     z-index: 6;
     left: 50%;
     bottom: calc(1.25rem + env(safe-area-inset-bottom));
-    width: min(44rem, calc(100vw - 2.5rem));
+    width: min(46rem, calc(100vw - 2.5rem));
     border: 1px solid rgba(255, 255, 255, 0.12);
-    border-radius: 1.25rem;
-    background: rgba(18, 8, 3, 0.7);
+    border-radius: 1.4rem;
+    background: rgba(18, 8, 3, 0.72);
     backdrop-filter: blur(24px) saturate(140%);
     -webkit-backdrop-filter: blur(24px) saturate(140%);
     box-shadow: 0 16px 48px rgba(0, 0, 0, 0.35);
@@ -375,37 +381,95 @@ const tabs = [
     transition-delay: 0s;
   }
 
-  .dock__bar {
+  .dock.dragging {
+    transition: none;
+  }
+
+  .dock__grip {
+    display: none;
+  }
+
+  .dock__header {
     display: flex;
     align-items: center;
     justify-content: space-between;
     gap: 0.75rem;
-    padding: 0.6rem 0.6rem 0;
+    padding: 0.9rem var(--pad) 0;
+  }
+
+  .dock__title {
+    margin: 0;
+    font-size: 1rem;
+    font-weight: 800;
+    letter-spacing: 0.01em;
+  }
+
+  .dock__actions {
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+    margin-right: -0.35rem;
+  }
+
+  .dock__action {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4em;
+    height: 2rem;
+    padding: 0 0.75em;
+    border: 0;
+    border-radius: 5rem;
+    background: transparent;
+    color: rgba(255, 255, 255, 0.65);
+    font: inherit;
+    font-size: 0.8rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition:
+      color 150ms ease,
+      background 150ms ease;
+  }
+
+  .dock__action svg {
+    width: 0.95rem;
+    height: 0.95rem;
+  }
+
+  .dock__action:hover {
+    color: #fff;
+    background: rgba(255, 255, 255, 0.1);
+  }
+
+  .dock__action--icon {
+    width: 2rem;
+    padding: 0;
+    justify-content: center;
+  }
+
+  .dock__action--icon svg {
+    width: 1rem;
+    height: 1rem;
   }
 
   .dock__tabs {
     display: flex;
     gap: 0.15rem;
+    margin: 0.75rem var(--pad) 0;
     padding: 0.2rem;
     border-radius: 5rem;
     background: rgba(255, 255, 255, 0.07);
-    overflow-x: auto;
-    scrollbar-width: none;
-  }
-
-  .dock__tabs::-webkit-scrollbar {
-    display: none;
   }
 
   .dock__tab {
-    flex: none;
-    padding: 0.4em 0.95em;
+    flex: 1;
+    padding: 0.45em 0.9em;
     border: 0;
     border-radius: 5rem;
     background: transparent;
     color: rgba(255, 255, 255, 0.65);
     font: inherit;
     font-weight: 600;
+    text-align: center;
     cursor: pointer;
     transition:
       background 160ms ease,
@@ -421,64 +485,16 @@ const tabs = [
     color: #fff;
   }
 
-  .dock__actions {
-    display: flex;
-    align-items: center;
-    gap: 0.25rem;
-  }
-
-  .dock__action {
-    display: grid;
-    place-items: center;
-    height: 2rem;
-    padding: 0 0.75em;
-    border: 0;
-    border-radius: 5rem;
-    background: transparent;
-    color: rgba(255, 255, 255, 0.6);
-    font: inherit;
-    font-size: 0.8rem;
-    font-weight: 600;
-    cursor: pointer;
-    transition:
-      color 150ms ease,
-      background 150ms ease;
-  }
-
-  .dock__action:hover {
-    color: #fff;
-    background: rgba(255, 255, 255, 0.1);
-  }
-
-  .dock__action--reset {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.4em;
-  }
-
-  .dock__action--reset svg {
-    width: 0.95rem;
-    height: 0.95rem;
-  }
-
-  .dock__action--icon {
-    width: 2rem;
-    padding: 0;
-  }
-
-  .dock__action--icon svg {
-    width: 1rem;
-    height: 1rem;
-  }
-
   .dock__panes {
-    padding: 0.9rem var(--pad) var(--pad);
+    padding: 1rem var(--pad) var(--pad);
+    overflow: hidden;
+    transition: height 260ms cubic-bezier(0.2, 0.8, 0.2, 1);
   }
 
   .dock__pane {
     display: flex;
     flex-direction: column;
-    gap: 0.9rem;
+    gap: 1rem;
     animation: pane-in 220ms ease;
   }
 
@@ -580,6 +596,15 @@ const tabs = [
     color: #fff;
   }
 
+  /* Once a real render exists it replaces the CSS stand-in. */
+  .look__swatch.has-preview {
+    background: var(--preview) center / cover no-repeat;
+  }
+
+  .look__swatch.has-preview::after {
+    display: none;
+  }
+
   /* Each tile previews its look with pure CSS. */
   .look__swatch--pixelate::after {
     background:
@@ -649,37 +674,22 @@ const tabs = [
   }
 
   /* ---- Fields -------------------------------------------------------- */
-  .row {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: flex-end;
-    gap: 1rem 1.5rem;
-  }
-
   .grid {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr));
-    gap: 0.9rem 1.5rem;
+    gap: 1rem 1.5rem;
+    align-items: start;
   }
 
   .grid--toppings {
-    grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr));
+    grid-template-columns: repeat(3, 1fr);
   }
 
   .field {
     display: flex;
     flex-direction: column;
-    gap: 0.4rem;
+    gap: 0.35rem;
     min-width: 0;
-    flex: 1 1 12rem;
-  }
-
-  .field--inline {
-    flex: 0 0 auto;
-    flex-direction: row;
-    align-items: center;
-    gap: 0.7rem;
-    padding-bottom: 0.3rem;
   }
 
   .field[hidden] {
@@ -690,7 +700,15 @@ const tabs = [
     display: flex;
     align-items: center;
     justify-content: space-between;
+    min-height: 1.4rem;
     font-weight: 500;
+  }
+
+  /* Every control sits in a row of the same height so neighbours line up. */
+  .field__control {
+    display: flex;
+    align-items: center;
+    height: 1.75rem;
   }
 
   output {
@@ -707,16 +725,18 @@ const tabs = [
     display: grid;
     grid-template-columns: auto 1fr;
     grid-template-rows: auto auto;
-    column-gap: 0.6rem;
-    row-gap: 0.3rem;
+    column-gap: 0.7rem;
+    row-gap: 0.35rem;
     align-items: center;
   }
 
   .topping__icon {
     grid-row: 1 / 3;
-    width: 1.6rem;
-    height: 1.6rem;
-    filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.35));
+    width: 2.6rem;
+    height: 2.6rem;
+    border-radius: 0.7rem;
+    background: rgba(255, 255, 255, 0.06) var(--preview, none) center / 88% no-repeat;
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.1);
   }
 
   /* Range sliders: one look in every browser, with the filled part of the track. */
@@ -726,7 +746,7 @@ const tabs = [
     appearance: none;
     -webkit-appearance: none;
     width: 100%;
-    height: 1.4rem;
+    height: 1.75rem;
     margin: 0;
     background: transparent;
     cursor: pointer;
@@ -820,10 +840,11 @@ const tabs = [
   /* Segmented control */
   .segment {
     display: inline-flex;
-    padding: 0.2rem;
+    align-items: stretch;
+    height: 1.75rem;
+    padding: 0.15rem;
     border-radius: 5rem;
     background: rgba(255, 255, 255, 0.08);
-    align-self: flex-start;
   }
 
   .segment label {
@@ -839,8 +860,10 @@ const tabs = [
   }
 
   .segment span {
-    display: block;
-    padding: 0.35em 0.9em;
+    display: flex;
+    align-items: center;
+    height: 100%;
+    padding: 0 0.9em;
     border-radius: 5rem;
     font-size: 0.8rem;
     font-weight: 600;
@@ -896,19 +919,16 @@ const tabs = [
     transform: scale(0.97);
   }
 
-  /* ---- Phones -------------------------------------------------------- */
+  /* ---- Phones: a floating sheet you can swipe away -------------------- */
   @media (max-width: 640px) {
     .dock {
-      left: 0;
-      right: 0;
-      bottom: 0;
-      width: 100%;
-      border-left: 0;
-      border-right: 0;
-      border-bottom: 0;
-      border-radius: 1.25rem 1.25rem 0 0;
-      padding-bottom: env(safe-area-inset-bottom);
-      transform: translateY(100%);
+      --pad: 1.25rem;
+
+      left: 0.75rem;
+      right: 0.75rem;
+      bottom: calc(0.75rem + env(safe-area-inset-bottom));
+      width: auto;
+      transform: translateY(calc(100% + 2rem));
       opacity: 1;
     }
 
@@ -916,43 +936,59 @@ const tabs = [
       transform: translateY(0);
     }
 
-    .dock__bar {
-      padding: 0.6rem 0.5rem 0;
+    .dock__grip {
+      display: block;
+      width: 2.25rem;
+      height: 4px;
+      margin: 0.6rem auto 0;
+      border-radius: 2px;
+      background: rgba(255, 255, 255, 0.3);
     }
 
+    .dock__grip,
+    .dock__header,
     .dock__tabs {
-      flex: 1;
-      min-width: 0;
+      touch-action: none;
+    }
+
+    .dock__header {
+      padding-top: 0.5rem;
+    }
+
+    .dock__title {
+      font-size: 1.1rem;
+    }
+
+    .dock__action span,
+    .dock__action:not(.dock__action--icon) {
+      font-size: 0.8rem;
     }
 
     .dock__tab {
-      flex: 1;
-      padding: 0.4em 0.5em;
-      font-size: 0.8rem;
-      text-align: center;
-    }
-
-    .dock__action--reset {
-      width: 2rem;
-      padding: 0;
-    }
-
-    .dock__action--reset span {
-      display: none;
+      padding: 0.5em 0.4em;
+      font-size: 0.82rem;
     }
 
     .dock__panes {
-      max-height: 55dvh;
+      max-height: 52dvh;
       overflow-y: auto;
       overscroll-behavior: contain;
+      padding-top: 1.1rem;
+    }
+
+    .dock__pane {
+      gap: 1.25rem;
     }
 
     .looks {
       grid-template-columns: repeat(4, 1fr);
+      gap: 0.6rem 0.4rem;
     }
 
-    .grid {
+    .grid,
+    .grid--toppings {
       grid-template-columns: 1fr;
+      gap: 1.25rem;
     }
 
     .toast {
@@ -983,6 +1019,7 @@ const tabs = [
   @media (prefers-reduced-motion: reduce) {
     .dock,
     .dock__pane,
+    .dock__panes,
     .look__swatch,
     .toolbar__button {
       transition: none;

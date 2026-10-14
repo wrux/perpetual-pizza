@@ -395,6 +395,8 @@ export interface EffectContext {
   pixelSize: number;
   /** Passes appended after the look, owned by the caller (not disposed with the pipeline). */
   tail?: Pass[];
+  /** Render into this target instead of the canvas (used for thumbnails). */
+  target?: THREE.WebGLRenderTarget;
 }
 
 export interface EffectPipeline {
@@ -408,7 +410,8 @@ export interface EffectPipeline {
 
 export function createPipeline(ctx: EffectContext): EffectPipeline {
   const { renderer, scene, camera, effect } = ctx;
-  const composer = new EffectComposer(renderer);
+  const composer = new EffectComposer(renderer, ctx.target);
+  if (ctx.target) composer.renderToScreen = false;
   const passes: Pass[] = [];
   const add = <T extends Pass>(p: T): T => {
     composer.addPass(p);

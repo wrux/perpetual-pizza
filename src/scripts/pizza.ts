@@ -1,5 +1,8 @@
 import * as THREE from 'three';
-import { createPipeline, TransitionPass, usesToonMaterials, type EffectName, type EffectPipeline } from './effects';
+import { createPipeline, EFFECTS, TransitionPass, usesToonMaterials, type EffectName, type EffectPipeline } from './effects';
+import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js';
+import { OutputPass } from 'three/examples/jsm/postprocessing/OutputPass.js';
+import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer.js';
 import { FullScreenQuad } from 'three/examples/jsm/postprocessing/Pass.js';
 import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
 
@@ -15,6 +18,8 @@ export interface ToppingCounts {
   mushroom: number;
   basil: number;
   olive: number;
+  jalapeno: number;
+  ham: number;
 }
 
 export interface PizzaConfig {
@@ -51,7 +56,7 @@ export const defaultConfig: PizzaConfig = {
   ratio: 0.2,
   levels: 6,
   seed: 7,
-  toppings: { pepperoni: 27, mushroom: 10, basil: 5, olive: 14 },
+  toppings: { pepperoni: 27, mushroom: 10, basil: 5, olive: 14, jalapeno: 0, ham: 0 },
   shadows: true,
   direction: 1,
   elevation: 41,
@@ -63,9 +68,16 @@ export const defaultConfig: PizzaConfig = {
 /** Start-up progress: a human caption and a 0..1 fraction. */
 export type ProgressCallback = (caption: string, fraction: number) => void;
 
+export interface Previews {
+  looks: Record<EffectName, string>;
+  toppings: Record<keyof ToppingCounts, string>;
+}
+
 export interface PizzaController {
   config: PizzaConfig;
   update(patch: Partial<PizzaConfig>): void;
+  /** Render small PNG data URLs of every look and every topping, for the options panel. */
+  renderPreviews(size?: number): Promise<Previews>;
   dispose(): void;
 }
 
@@ -433,6 +445,52 @@ function oliveTexture(seed: number) {
   });
 }
 
+const JAL_SKIN = rgb('#3f8a2c');
+const JAL_SKIN_DARK = rgb('#2c6a1e');
+const JAL_FLESH = rgb('#c9df9c');
+const JAL_SEED = rgb('#f1e7b8');
+
+/** Lathe-mapped jalapeño ring: glossy green skin outside, pale flesh with seeds on the cut faces. */
+function jalapenoTexture(seed: number) {
+  const n = makeNoise(seed + 83, 64);
+  return paint(256, 64, (u, v) => {
+    const x = u * 24;
+    const y = v * 6;
+    const grain = n.fbm(x, y, 3, 0.5);
+    const skin = smoothstep(0.27, 0.33, v) * (1 - smoothstep(0.67, 0.73, v));
+    const inner = 1 - smoothstep(0.08, 0.12, Math.min(v, 1 - v));
+    // Seeds cluster on the inner part of the cut faces.
+    const seeds = smoothstep(0.75, 0.85, n.fbm(x * 5 + 3, y * 2 + 9, 2, 0.5)) * inner * 0.9;
+    let color = mixRgb(JAL_FLESH, rgb('#a9c57e'), smoothstep(0.35, 0.7, grain) * 0.7);
+    color = mixRgb(color, JAL_SEED, seeds);
+    color = mixRgb(color, mixRgb(JAL_SKIN, JAL_SKIN_DARK, smoothstep(0.3, 0.7, grain)), skin);
+    return { color, height: 0.5 + grain * 0.2 + seeds * 0.3 - skin * 0.1, rough: mix(0.55, 0.22, skin) };
+  });
+}
+
+const HAM_BOUNDS: Bounds = { minX: -0.062, maxX: 0.062, minY: -0.052, maxY: 0.052 };
+const HAM_BASE = rgb('#e6999f');
+const HAM_DARK = rgb('#cf7a82');
+const HAM_FAT = rgb('#f5dcd6');
+
+/** Ham piece: pink with pale fat marbling and a slightly darker, drier edge. */
+function hamTexture(seed: number) {
+  const n = makeNoise(seed + 97, 128);
+  return paint(512, 512, (u, v) => {
+    const { x, y } = shapePoint(HAM_BOUNDS, u, v);
+    const grain = n.fbm(x * 60 + 2, y * 60 + 5, 3, 0.5);
+    // Fat runs in long streaks.
+    const streak = n.fbm(x * 18 + 7, y * 70 + 1, 3, 0.55);
+    const fat = smoothstep(0.6, 0.72, streak);
+    const r = Math.hypot(x / 0.062, y / 0.052);
+    const edge = smoothstep(0.78, 1, r);
+    let color = mixRgb(HAM_BASE, HAM_DARK, smoothstep(0.35, 0.7, grain) * 0.7);
+    color = mixRgb(color, HAM_FAT, fat * 0.85);
+    color = mixRgb(color, HAM_DARK, edge * 0.5);
+    return { color, height: 0.5 + grain * 0.15 + fat * 0.1, rough: 0.5 - fat * 0.1 + edge * 0.15 };
+  });
+}
+
 /* ------------------------------------------------------------------ */
 /* Geometry                                                            */
 /* ------------------------------------------------------------------ */
@@ -628,6 +686,55 @@ function displaceRing(geo: THREE.BufferGeometry, tex: ReturnType<typeof paint>) 
   return geo;
 }
 
+/** Jalapeño ring: like the olive but larger, thinner-walled and a little wobblier. */
+function jalapenoGeometry(seed: number) {
+  const pts = [
+    [0.03, -0.007],
+    [0.036, -0.0085],
+    [0.046, -0.0085],
+    [0.051, -0.004],
+    [0.052, 0],
+    [0.051, 0.004],
+    [0.046, 0.0085],
+    [0.036, 0.0085],
+    [0.03, 0.007],
+    [0.028, 0],
+    [0.03, -0.007],
+  ].map(([x, y]) => new THREE.Vector2(x, y));
+  return roughenOutline(new THREE.LatheGeometry(pts, 40), seed + 101, 0.16);
+}
+
+/** Torn ham piece: a wobbly rounded rectangle, thin, with lifted corners. */
+function hamGeometry(seed: number) {
+  const n = makeNoise(seed + 103);
+  const shape = new THREE.Shape();
+  const pts: THREE.Vector2[] = [];
+  const steps = 36;
+  for (let i = 0; i < steps; i++) {
+    const a = (i / steps) * Math.PI * 2;
+    // Superellipse for a soft rectangle, then noise for torn edges.
+    const c = Math.cos(a);
+    const sn = Math.sin(a);
+    const k = 1 / Math.pow(Math.pow(Math.abs(c), 3) + Math.pow(Math.abs(sn), 3), 1 / 3);
+    const wobble = 0.86 + n.fbm(c * 2 + 5, sn * 2 + 5, 2, 0.5) * 0.28;
+    pts.push(new THREE.Vector2(c * k * 0.058 * wobble, sn * k * 0.048 * wobble));
+  }
+  shape.moveTo(pts[0].x, pts[0].y);
+  for (const p of pts.slice(1)) shape.lineTo(p.x, p.y);
+  shape.closePath();
+  const geo = new THREE.ExtrudeGeometry(shape, { depth: 0.004, bevelEnabled: false });
+  planarUVs(geo, HAM_BOUNDS);
+  const pos = geo.attributes.position as THREE.BufferAttribute;
+  for (let i = 0; i < pos.count; i++) {
+    const x = pos.getX(i);
+    const y = pos.getY(i);
+    const lift = 0.012 * Math.pow(Math.hypot(x / 0.062, y / 0.052), 3) + n.fbm(x * 30 + 1, y * 30 + 2, 2, 0.5) * 0.006;
+    pos.setZ(i, pos.getZ(i) + lift);
+  }
+  geo.computeVertexNormals();
+  return geo;
+}
+
 interface Assets {
   geometries: THREE.BufferGeometry[];
   materials: THREE.Material[];
@@ -643,6 +750,8 @@ interface PaintedSet {
   mushroom: Painted;
   basil: Painted;
   olive: Painted;
+  jalapeno: Painted;
+  ham: Painted;
 }
 
 /** Painting textures is the slow part of a rebuild, so keep the last set unless the seed changes. */
@@ -660,6 +769,8 @@ async function prepaint(seed: number, report: ProgressCallback) {
     ['Chopping mushrooms', 'mushroom', mushroomTexture],
     ['Picking basil', 'basil', basilTexture],
     ['Pitting olives', 'olive', oliveTexture],
+    ['Slicing jalapeños', 'jalapeno', jalapenoTexture],
+    ['Dicing ham', 'ham', hamTexture],
   ];
   const partial: Partial<PaintedSet> = { seed };
   for (let i = 0; i < steps.length; i++) {
@@ -674,8 +785,8 @@ async function prepaint(seed: number, report: ProgressCallback) {
 function paintedFor(seed: number): PaintedSet {
   if (paintedCache && paintedCache.seed === seed) return paintedCache;
   if (paintedCache) {
-    const { cheese, crust, pepperoni, mushroom, basil, olive } = paintedCache;
-    for (const set of [cheese, crust, pepperoni, mushroom, basil, olive]) {
+    const { cheese, crust, pepperoni, mushroom, basil, olive, jalapeno, ham } = paintedCache;
+    for (const set of [cheese, crust, pepperoni, mushroom, basil, olive, jalapeno, ham]) {
       set.map.dispose();
       set.bumpMap.dispose();
       set.roughnessMap.dispose();
@@ -689,6 +800,8 @@ function paintedFor(seed: number): PaintedSet {
     mushroom: mushroomTexture(seed),
     basil: basilTexture(seed),
     olive: oliveTexture(seed),
+    jalapeno: jalapenoTexture(seed),
+    ham: hamTexture(seed),
   };
   return paintedCache;
 }
@@ -867,6 +980,38 @@ function buildPizza(config: PizzaConfig, assets: Assets): THREE.Group {
     ),
   );
 
+  const jalMaps = painted.jalapeno;
+  const jalGeo = geo(jalapenoGeometry(config.seed));
+  const jalMat = mat(
+    material(
+      {
+        map: jalMaps.map,
+        bumpMap: jalMaps.bumpMap,
+        bumpScale: 0.3,
+        roughnessMap: jalMaps.roughnessMap,
+        roughness: 1,
+        envMapIntensity: 1.1,
+        clearcoat: 0.5,
+        clearcoatRoughness: 0.3,
+      },
+      true,
+    ),
+  );
+
+  const hamMaps = painted.ham;
+  const hamGeo = geo(hamGeometry(config.seed));
+  const hamMat = mat(
+    material({
+      map: hamMaps.map,
+      bumpMap: hamMaps.bumpMap,
+      bumpScale: 0.3,
+      roughnessMap: hamMaps.roughnessMap,
+      roughness: 1,
+      envMapIntensity: 0.9,
+      side: THREE.DoubleSide,
+    }),
+  );
+
   const placed: Array<{ x: number; z: number; r: number }> = [];
   const minR = holeRadius + 0.1;
   const maxR = CRUST_RADIUS - CRUST_TUBE - 0.05;
@@ -886,11 +1031,17 @@ function buildPizza(config: PizzaConfig, assets: Assets): THREE.Group {
     return null;
   }
 
-  const addTopping = (count: number, footprint: number, make: (x: number, z: number) => THREE.Object3D) => {
+  const addTopping = (
+    kind: keyof ToppingCounts,
+    count: number,
+    footprint: number,
+    make: (x: number, z: number) => THREE.Object3D,
+  ) => {
     for (let i = 0; i < count; i++) {
       const pos = place(footprint);
       if (!pos) continue;
       const obj = make(pos.x, pos.z);
+      obj.userData.topping = kind;
       obj.traverse((o) => {
         if (o instanceof THREE.Mesh) o.castShadow = o.receiveShadow = true;
       });
@@ -899,7 +1050,7 @@ function buildPizza(config: PizzaConfig, assets: Assets): THREE.Group {
   };
 
   const t = config.toppings;
-  addTopping(t.pepperoni, 0.07, (x, z) => {
+  addTopping('pepperoni', t.pepperoni, 0.07, (x, z) => {
     const m = new THREE.Mesh(pepGeo, pepMat);
     const s = 0.8 + rng() * 0.45;
     // Varied cupping: some slices lie flat, some curl up into little cups.
@@ -908,7 +1059,7 @@ function buildPizza(config: PizzaConfig, assets: Assets): THREE.Group {
     m.rotation.set((rng() - 0.5) * 0.15, rng() * Math.PI * 2, (rng() - 0.5) * 0.15);
     return m;
   });
-  addTopping(t.mushroom, 0.075, (x, z) => {
+  addTopping('mushroom', t.mushroom, 0.075, (x, z) => {
     const m = new THREE.Mesh(mushGeo, [mushFace, mushSide]);
     m.rotation.x = -Math.PI / 2 + (rng() - 0.5) * 0.3;
     m.rotation.z = rng() * Math.PI * 2;
@@ -917,7 +1068,7 @@ function buildPizza(config: PizzaConfig, assets: Assets): THREE.Group {
     m.position.set(x, surfaceAt(x, z) + 0.004, z);
     return m;
   });
-  addTopping(t.basil, 0.07, (x, z) => {
+  addTopping('basil', t.basil, 0.07, (x, z) => {
     const m = new THREE.Mesh(basilGeo, basilMat);
     m.rotation.x = -Math.PI / 2 + (rng() - 0.5) * 0.3;
     m.rotation.z = rng() * Math.PI * 2;
@@ -926,12 +1077,30 @@ function buildPizza(config: PizzaConfig, assets: Assets): THREE.Group {
     m.position.set(x, surfaceAt(x, z) + 0.004, z);
     return m;
   });
-  addTopping(t.olive, 0.045, (x, z) => {
+  addTopping('olive', t.olive, 0.045, (x, z) => {
     const m = new THREE.Mesh(oliveGeo, oliveMat);
     m.rotation.set((rng() - 0.5) * 0.25, rng() * Math.PI * 2, (rng() - 0.5) * 0.25);
     const s = 0.85 + rng() * 0.3;
     m.scale.set(s, 1, s);
     m.position.set(x, surfaceAt(x, z) + 0.009, z);
+    return m;
+  });
+
+  addTopping('jalapeno', t.jalapeno, 0.055, (x, z) => {
+    const m = new THREE.Mesh(jalGeo, jalMat);
+    m.rotation.set((rng() - 0.5) * 0.3, rng() * Math.PI * 2, (rng() - 0.5) * 0.3);
+    const s = 0.8 + rng() * 0.35;
+    m.scale.set(s, 1, s);
+    m.position.set(x, surfaceAt(x, z) + 0.01, z);
+    return m;
+  });
+  addTopping('ham', t.ham, 0.065, (x, z) => {
+    const m = new THREE.Mesh(hamGeo, hamMat);
+    m.rotation.x = -Math.PI / 2 + (rng() - 0.5) * 0.2;
+    m.rotation.z = rng() * Math.PI * 2;
+    const s = 0.75 + rng() * 0.4;
+    m.scale.setScalar(s);
+    m.position.set(x, surfaceAt(x, z) + 0.004, z);
     return m;
   });
 
@@ -1134,8 +1303,96 @@ export async function createPizza(
 
   raf = requestAnimationFrame(frame);
 
+  /** Copy a render target into a PNG data URL (flipping GL's bottom-up rows). */
+  function targetToDataUrl(rt: THREE.WebGLRenderTarget) {
+    const { width, height } = rt;
+    const pixels = new Uint8Array(width * height * 4);
+    renderer.readRenderTargetPixels(rt, 0, 0, width, height, pixels);
+    const out = document.createElement('canvas');
+    out.width = width;
+    out.height = height;
+    const ctx = out.getContext('2d')!;
+    const image = ctx.createImageData(width, height);
+    const row = width * 4;
+    for (let y = 0; y < height; y++) image.data.set(pixels.subarray(y * row, (y + 1) * row), (height - 1 - y) * row);
+    ctx.putImageData(image, 0, 0);
+    return out.toDataURL('image/png');
+  }
+
+  async function renderPreviews(size = 96): Promise<Previews> {
+    const looks = {} as Record<EffectName, string>;
+    const toppings = {} as Record<keyof ToppingCounts, string>;
+    const previousAspect = camera.aspect;
+    camera.aspect = 1;
+    camera.updateProjectionMatrix();
+
+    // Every look, rendered from the live scene into a small square target.
+    for (const effect of EFFECTS) {
+      const target = new THREE.WebGLRenderTarget(size, size, { type: THREE.UnsignedByteType });
+      const p = createPipeline({ renderer, scene, camera, effect, pixelSize: Math.max(2, Math.round(config.pixelSize / 2)), target });
+      p.setSize(size, size);
+      p.tick(1.3);
+      p.composer.render();
+      looks[effect] = targetToDataUrl(p.composer.readBuffer);
+      p.dispose();
+      await breathe();
+    }
+    camera.aspect = previousAspect;
+    camera.updateProjectionMatrix();
+
+    // Each topping on its own against a transparent background.
+    const stage = new THREE.Scene();
+    stage.environment = scene.environment;
+    stage.environmentIntensity = scene.environmentIntensity;
+    stage.add(hemi.clone(), fill.clone());
+    const key = new THREE.DirectionalLight(sun.color, sun.intensity);
+    key.position.copy(sun.position);
+    stage.add(key);
+    const cam = new THREE.PerspectiveCamera(28, 1, 0.01, 10);
+    const holder = new THREE.Group();
+    stage.add(holder);
+
+    const target = new THREE.WebGLRenderTarget(size, size, { type: THREE.UnsignedByteType });
+    const composer = new EffectComposer(renderer, target);
+    composer.renderToScreen = false;
+    const pass = new RenderPass(stage, cam);
+    pass.clearColor = new THREE.Color(0x000000);
+    pass.clearAlpha = 0;
+    composer.addPass(pass);
+    composer.addPass(new OutputPass());
+    composer.setSize(size, size);
+
+    const pizza = levelGroups[0]?.children[0];
+    for (const kind of ['pepperoni', 'mushroom', 'basil', 'olive', 'jalapeno', 'ham'] as const) {
+      let source: THREE.Object3D | undefined;
+      pizza?.traverse((o) => {
+        if (!source && o.userData.topping === kind) source = o;
+      });
+      if (!source) continue;
+      const clone = source.clone();
+      clone.position.set(0, 0, 0);
+      clone.traverse((o) => {
+        if (o instanceof THREE.Mesh) o.castShadow = o.receiveShadow = false;
+      });
+      holder.clear();
+      holder.add(clone);
+      const sphere = new THREE.Box3().setFromObject(clone).getBoundingSphere(new THREE.Sphere());
+      const dist = (sphere.radius * 1.15) / Math.sin(THREE.MathUtils.degToRad(cam.fov / 2));
+      cam.position.copy(sphere.center).add(new THREE.Vector3(0.35, 1, 0.55).normalize().multiplyScalar(dist));
+      cam.lookAt(sphere.center);
+      composer.render();
+      toppings[kind] = targetToDataUrl(composer.readBuffer);
+      await breathe();
+    }
+    composer.dispose();
+    stage.clear();
+
+    return { looks, toppings };
+  }
+
   return {
     config,
+    renderPreviews,
     update(patch) {
       const toonChanged = patch.effect !== undefined && usesToonMaterials(patch.effect) !== usesToonMaterials(config.effect);
       const needsRebuild =
