@@ -9,7 +9,6 @@ import { Pass, FullScreenQuad } from 'three/examples/jsm/postprocessing/Pass.js'
 export const EFFECTS = [
   'none',
   'pixelate',
-  'retro16',
   'oil',
   'film',
   'vhs',
@@ -22,7 +21,6 @@ export type EffectName = (typeof EFFECTS)[number];
 export const effectLabels: Record<EffectName, string> = {
   none: 'Default',
   pixelate: 'Pixel',
-  retro16: '16-bit',
   oil: 'Oil Painting',
   film: 'Old Film',
   vhs: 'VHS',
@@ -560,64 +558,6 @@ const OldFilmShader = simpleShader(/* glsl */ `
   }
 `);
 
-/** 1990s PC: chunky pixels and the classic 16-colour palette with ordered dithering. */
-const SixteenBitShader = simpleShader(/* glsl */ `
-  uniform float pixelSize;
-  float bayer(vec2 p) {
-    int x = int(mod(p.x, 4.0));
-    int y = int(mod(p.y, 4.0));
-    int i = x + y * 4;
-    float m[16];
-    m[0] = 0.0;  m[1] = 8.0;  m[2] = 2.0;  m[3] = 10.0;
-    m[4] = 12.0; m[5] = 4.0;  m[6] = 14.0; m[7] = 6.0;
-    m[8] = 3.0;  m[9] = 11.0; m[10] = 1.0; m[11] = 9.0;
-    m[12] = 15.0; m[13] = 7.0; m[14] = 13.0; m[15] = 5.0;
-    for (int k = 0; k < 16; k++) { if (k == i) return m[k] / 16.0; }
-    return 0.0;
-  }
-  // The standard 16-colour palette every DOS game started from.
-  vec3 palette(int i) {
-    if (i == 0) return vec3(0.0, 0.0, 0.0);
-    if (i == 1) return vec3(0.0, 0.0, 0.67);
-    if (i == 2) return vec3(0.0, 0.67, 0.0);
-    if (i == 3) return vec3(0.0, 0.67, 0.67);
-    if (i == 4) return vec3(0.67, 0.0, 0.0);
-    if (i == 5) return vec3(0.67, 0.0, 0.67);
-    if (i == 6) return vec3(0.67, 0.33, 0.0);
-    if (i == 7) return vec3(0.67, 0.67, 0.67);
-    if (i == 8) return vec3(0.33, 0.33, 0.33);
-    if (i == 9) return vec3(0.33, 0.33, 1.0);
-    if (i == 10) return vec3(0.33, 1.0, 0.33);
-    if (i == 11) return vec3(0.33, 1.0, 1.0);
-    if (i == 12) return vec3(1.0, 0.33, 0.33);
-    if (i == 13) return vec3(1.0, 0.33, 1.0);
-    if (i == 14) return vec3(1.0, 1.0, 0.33);
-    return vec3(1.0, 1.0, 1.0);
-  }
-  void main() {
-    vec3 c = texture2D(tDiffuse, vUv).rgb;
-    // Lift the midtones and saturation so the pizza lands on yellow, brown and red rather than grey.
-    float l = luma(c);
-    c = clamp(mix(vec3(l), c, 1.3), 0.0, 1.0);
-    c = pow(c, vec3(0.9));
-    // Ordered dither pushes each pixel toward a neighbouring palette entry.
-    vec2 cell = floor(vUv * resolution / pixelSize);
-    c += (bayer(cell) - 0.5) * 0.3;
-    // Nearest palette colour.
-    float best = 1e9;
-    vec3 col = vec3(0.0);
-    for (int i = 0; i < 16; i++) {
-      vec3 p = palette(i);
-      vec3 d = c - p;
-      // Weight like the eye does so browns don't turn purple.
-      float dist = dot(d * d, vec3(0.3, 0.59, 0.11));
-      if (dist < best) { best = dist; col = p; }
-    }
-    gl_FragColor = vec4(col, 1.0);
-  }
-`);
-SixteenBitShader.uniforms = { ...SixteenBitShader.uniforms, pixelSize: { value: 4 } } as typeof SixteenBitShader.uniforms & { pixelSize: { value: number } };
-
 /** Looks that are one shader over the plain render. */
 const singlePassLooks: Partial<Record<EffectName, ReturnType<typeof simpleShader>>> = {
   oil: OilShader,
@@ -683,17 +623,6 @@ export function createPipeline(ctx: EffectContext): EffectPipeline {
         timedPasses.push(crt);
       }
       break;
-    case 'retro16': {
-      // A 320x200-ish picture whatever the screen size: big, square pixels.
-      const height = renderer.getSize(new THREE.Vector2()).y;
-      const size = Math.max(3, Math.round(height / 120));
-      pixelated = add(new RenderPixelatedPass(size, scene, camera, { normalEdgeStrength: 0, depthEdgeStrength: 0 }));
-      add(new OutputPass());
-      const p = add(new ShaderPass(SixteenBitShader));
-      (p.uniforms.pixelSize as { value: number }).value = size * renderer.getPixelRatio();
-      resolutionPasses.push(p);
-      break;
-    }
     case 'lsd':
       add(new RenderPass(scene, camera));
       add(new OutputPass());
