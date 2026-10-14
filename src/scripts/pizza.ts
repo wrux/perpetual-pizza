@@ -1093,6 +1093,27 @@ function buildPizza(config: PizzaConfig, assets: Assets): THREE.Group {
 /* Scene                                                               */
 /* ------------------------------------------------------------------ */
 
+/** Vertical gradient used as the scene background. */
+function backdropTexture() {
+  const c = document.createElement('canvas');
+  c.width = 4;
+  c.height = 512;
+  const ctx = c.getContext('2d')!;
+  const g = ctx.createLinearGradient(0, 0, 0, 512);
+  // Tone mapping darkens this considerably, so the stops are brighter than they look here.
+  g.addColorStop(0, '#120704');
+  g.addColorStop(0.2, '#2a1108');
+  g.addColorStop(0.42, '#8a4a22');
+  g.addColorStop(0.55, '#4a2210');
+  g.addColorStop(1, '#160804');
+  ctx.fillStyle = g;
+  ctx.fillRect(0, 0, 4, 512);
+  const tex = new THREE.CanvasTexture(c);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  tex.minFilter = THREE.LinearFilter;
+  return tex;
+}
+
 export async function createPizza(
   canvas: HTMLCanvasElement,
   initial: Partial<PizzaConfig> = {},
@@ -1108,7 +1129,10 @@ export async function createPizza(
   renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 
   const scene = new THREE.Scene();
-  scene.background = new THREE.Color('#f48c06');
+  // Dark, warm backdrop: near-black overhead, an ember glow at the horizon.
+  scene.background = backdropTexture();
+  // Fog in the same glow so the far edge of the biggest pizza melts into it.
+  scene.fog = new THREE.Fog(new THREE.Color('#5a2c12'), 3.5, 12);
 
   // Soft studio reflections so grease and cheese pick up highlights.
   const pmrem = new THREE.PMREMGenerator(renderer);
@@ -1304,8 +1328,13 @@ export async function createPizza(
   async function renderPreviews(size = 96): Promise<Previews> {
     const looks = {} as Record<EffectName, string>;
     const toppings = {} as Record<keyof ToppingCounts, string>;
+    // A fixed, flattering camera so the tiles match whatever angle the page is at.
     const previousAspect = camera.aspect;
     camera.aspect = 1;
+    camera.fov = 42;
+    const elev = THREE.MathUtils.degToRad(50);
+    camera.position.set(0, Math.sin(elev) * 2.9, Math.cos(elev) * 2.9);
+    camera.lookAt(0, 0, 0);
     camera.updateProjectionMatrix();
 
     // Every look, rendered from the live scene into a small square target.
@@ -1320,7 +1349,7 @@ export async function createPizza(
       await breathe();
     }
     camera.aspect = previousAspect;
-    camera.updateProjectionMatrix();
+    resize();
 
     // Each topping on its own against a transparent background.
     const stage = new THREE.Scene();

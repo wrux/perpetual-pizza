@@ -19,7 +19,7 @@ export const EFFECTS = [
 export type EffectName = (typeof EFFECTS)[number];
 
 export const effectLabels: Record<EffectName, string> = {
-  none: 'Realistic',
+  none: 'Default',
   pixelate: 'Pixelated',
   oil: 'Oil painting',
   film: 'Old film',
