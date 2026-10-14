@@ -238,12 +238,83 @@ const PsychedelicShader = {
   `,
 };
 
+/** Radial wipe from the previous frame (tPrev) to the live one, soft-edged. */
+const TransitionShader = {
+  uniforms: {
+    tDiffuse: { value: null as THREE.Texture | null },
+    tPrev: { value: null as THREE.Texture | null },
+    resolution: { value: new THREE.Vector2(1, 1) },
+    progress: { value: 1 },
+  },
+  vertexShader: VERTEX,
+  fragmentShader: /* glsl */ `
+    uniform sampler2D tDiffuse;
+    uniform sampler2D tPrev;
+    uniform vec2 resolution;
+    uniform float progress;
+    varying vec2 vUv;
+
+    void main() {
+      vec4 next = texture2D(tDiffuse, vUv);
+      vec4 prev = texture2D(tPrev, vUv);
+      float aspect = resolution.x / resolution.y;
+      vec2 c = (vUv - 0.5) * vec2(aspect, 1.0);
+      // 0 at the centre, 1 in the corners.
+      float d = length(c) / (0.5 * length(vec2(aspect, 1.0)));
+      // The new look grows out of the centre, where the zoom comes from.
+      float front = progress * 1.3;
+      float wipe = smoothstep(front - 0.35, front, d);
+      // A faint bright ring on the wipe front.
+      float ring = (1.0 - smoothstep(0.0, 0.08, abs(d - front + 0.15))) * (1.0 - progress) * 0.18;
+      gl_FragColor = mix(next, prev, wipe) + vec4(ring);
+    }
+  `,
+};
+
+/** A pass that cross-wipes from a stored frame to the live output. Kept across pipeline rebuilds. */
+export class TransitionPass extends ShaderPass {
+  private start = 0;
+  private duration = 700;
+
+  constructor() {
+    super(TransitionShader);
+    this.enabled = false;
+  }
+
+  /** Begin wiping from `previous` to whatever is now being rendered. */
+  begin(previous: THREE.Texture, now: number, duration = 700) {
+    this.uniforms.tPrev.value = previous;
+    this.uniforms.progress.value = 0;
+    this.start = now;
+    this.duration = duration;
+    this.enabled = true;
+  }
+
+  get running() {
+    return this.enabled;
+  }
+
+  /** Advance the wipe; disables itself when finished. */
+  tick(now: number) {
+    if (!this.enabled) return;
+    const t = Math.min((now - this.start) / this.duration, 1);
+    this.uniforms.progress.value = t * t * (3 - 2 * t);
+    if (t >= 1) this.enabled = false;
+  }
+
+  setResolution(w: number, h: number) {
+    this.uniforms.resolution.value.set(w, h);
+  }
+}
+
 export interface EffectContext {
   renderer: THREE.WebGLRenderer;
   scene: THREE.Scene;
   camera: THREE.Camera;
   effect: EffectName;
   pixelSize: number;
+  /** Passes appended after the look, owned by the caller (not disposed with the pipeline). */
+  tail?: Pass[];
 }
 
 export interface EffectPipeline {
@@ -325,6 +396,8 @@ export function createPipeline(ctx: EffectContext): EffectPipeline {
       add(new RenderPass(scene, camera));
       add(new OutputPass());
   }
+
+  ctx.tail?.forEach((p) => composer.addPass(p));
 
   return {
     composer,

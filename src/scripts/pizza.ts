@@ -1,5 +1,6 @@
 import * as THREE from 'three';
-import { createPipeline, usesToonMaterials, type EffectName, type EffectPipeline } from './effects';
+import { createPipeline, TransitionPass, usesToonMaterials, type EffectName, type EffectPipeline } from './effects';
+import { FullScreenQuad } from 'three/examples/jsm/postprocessing/Pass.js';
 import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
 
 /**
@@ -462,6 +463,29 @@ interface Assets {
   textures: THREE.Texture[];
 }
 
+type Painted = ReturnType<typeof paint>;
+interface PaintedSet {
+  seed: number;
+  cheese: Painted;
+  crust: Painted;
+  pepperoni: Painted;
+}
+
+/** Painting textures is the slow part of a rebuild, so keep the last set unless the seed changes. */
+let paintedCache: PaintedSet | null = null;
+function paintedFor(seed: number): PaintedSet {
+  if (paintedCache && paintedCache.seed === seed) return paintedCache;
+  if (paintedCache) {
+    for (const set of [paintedCache.cheese, paintedCache.crust, paintedCache.pepperoni]) {
+      set.map.dispose();
+      set.bumpMap.dispose();
+      set.roughnessMap.dispose();
+    }
+  }
+  paintedCache = { seed, cheese: cheeseTexture(seed), crust: crustTexture(seed), pepperoni: pepperoniTexture(seed) };
+  return paintedCache;
+}
+
 type MaterialParams = THREE.MeshStandardMaterialParameters;
 
 /** Four-band gradient for toon shading. */
@@ -492,16 +516,13 @@ function buildPizza(config: PizzaConfig, assets: Assets): THREE.Group {
 
   const geo = <T extends THREE.BufferGeometry>(g: T): T => (assets.geometries.push(g), g);
   const mat = <T extends THREE.Material>(m: T): T => (assets.materials.push(m), m);
-  const maps = (m: ReturnType<typeof paint>) => {
-    assets.textures.push(m.map, m.bumpMap, m.roughnessMap);
-    return m;
-  };
+  const painted = paintedFor(config.seed);
 
   // Inner pizza hole: next level is `ratio` the size, including its crust.
   const holeRadius = (CRUST_RADIUS + CRUST_TUBE) * config.ratio * 0.97;
 
   /* Cheese + sauce top, from the hole out under the crust. */
-  const cheese = maps(cheeseTexture(config.seed));
+  const cheese = painted.cheese;
   const cheeseMat = mat(
     material({
       map: cheese.map,
@@ -555,7 +576,7 @@ function buildPizza(config: PizzaConfig, assets: Assets): THREE.Group {
   group.add(wall);
 
   /* Crust. */
-  const crustMaps = maps(crustTexture(config.seed));
+  const crustMaps = painted.crust;
   const crust = new THREE.Mesh(
     geo(crustGeometry(config.seed)),
     mat(
@@ -575,7 +596,7 @@ function buildPizza(config: PizzaConfig, assets: Assets): THREE.Group {
   group.add(crust);
 
   /* Topping assets. */
-  const pepMaps = maps(pepperoniTexture(config.seed));
+  const pepMaps = painted.pepperoni;
   const pepGeo = geo(pepperoniGeometry());
   const pepMat = mat(
     material({
@@ -709,12 +730,42 @@ export function createPizza(canvas: HTMLCanvasElement, initial: Partial<PizzaCon
   pmrem.dispose();
 
   const camera = new THREE.PerspectiveCamera(config.fov, 1, 0.05, 200);
-  let pipeline: EffectPipeline = createPipeline({ renderer, scene, camera, effect: config.effect, pixelSize: config.pixelSize });
+
+  /* Look transitions: snapshot the current frame, swap the look, wipe to the live result. */
+  const transition = new TransitionPass();
+  const snapshot = new THREE.WebGLRenderTarget(1, 1, { type: THREE.HalfFloatType });
+  const copyQuad = new FullScreenQuad(new THREE.MeshBasicMaterial({ toneMapped: false }));
+
+  const makePipeline = () =>
+    createPipeline({ renderer, scene, camera, effect: config.effect, pixelSize: config.pixelSize, tail: [transition] });
+  let pipeline: EffectPipeline = makePipeline();
   const rebuildPipeline = () => {
     pipeline.dispose();
-    pipeline = createPipeline({ renderer, scene, camera, effect: config.effect, pixelSize: config.pixelSize });
+    pipeline = makePipeline();
     pipeline.setSize(window.innerWidth, window.innerHeight);
   };
+
+  /** Render the current look once into the snapshot target. */
+  function captureFrame() {
+    const wasEnabled = transition.enabled;
+    transition.enabled = false;
+    pipeline.composer.renderToScreen = false;
+    pipeline.composer.render();
+    pipeline.composer.renderToScreen = true;
+    transition.enabled = wasEnabled;
+
+    (copyQuad.material as THREE.MeshBasicMaterial).map = pipeline.composer.readBuffer.texture;
+    renderer.setRenderTarget(snapshot);
+    copyQuad.render(renderer);
+    renderer.setRenderTarget(null);
+  }
+
+  /** Run `change` with a wipe from the frame before it to the frames after. */
+  function withTransition(change: () => void, duration = 700) {
+    captureFrame();
+    change();
+    transition.begin(snapshot.texture, performance.now(), duration);
+  }
 
   /* Lights */
   const hemi = new THREE.HemisphereLight('#fff3dd', '#b85f14', 0.3);
@@ -777,6 +828,9 @@ export function createPizza(canvas: HTMLCanvasElement, initial: Partial<PizzaCon
     const h = window.innerHeight;
     renderer.setSize(w, h, false);
     pipeline.setSize(w, h);
+    const pr = renderer.getPixelRatio();
+    snapshot.setSize(w * pr, h * pr);
+    transition.setResolution(w * pr, h * pr);
     camera.aspect = w / h;
     camera.fov = config.fov;
     // Keep the pizza filling the viewport: back off on portrait screens and narrow lenses.
@@ -830,6 +884,7 @@ export function createPizza(canvas: HTMLCanvasElement, initial: Partial<PizzaCon
     for (let i = 1; i < levelGroups.length; i++) levelGroups[i].rotation.y = inner;
 
     pipeline.tick(elapsed);
+    transition.tick(now);
     pipeline.composer.render();
   }
   raf = requestAnimationFrame(frame);
@@ -844,22 +899,34 @@ export function createPizza(canvas: HTMLCanvasElement, initial: Partial<PizzaCon
         patch.ratio !== undefined ||
         patch.levels !== undefined ||
         toonChanged;
+      const lookChanged = patch.effect !== undefined && patch.effect !== config.effect;
+      const seedChanged = patch.seed !== undefined && patch.seed !== config.seed;
       Object.assign(config, patch, patch.toppings ? { toppings: { ...config.toppings, ...patch.toppings } } : {});
-      if (patch.effect !== undefined) rebuildPipeline();
-      else if (patch.pixelSize !== undefined) pipeline.setPixelSize(patch.pixelSize);
-      if (patch.elevation !== undefined || patch.fov !== undefined) resize();
-      if (patch.shadows !== undefined) {
-        renderer.shadowMap.enabled = patch.shadows;
-        sun.castShadow = patch.shadows;
-        assets.materials.forEach((m) => (m.needsUpdate = true));
-      }
-      if (needsRebuild) rebuild();
+
+      const apply = () => {
+        if (patch.effect !== undefined) rebuildPipeline();
+        else if (patch.pixelSize !== undefined) pipeline.setPixelSize(patch.pixelSize);
+        if (patch.elevation !== undefined || patch.fov !== undefined) resize();
+        if (patch.shadows !== undefined) {
+          renderer.shadowMap.enabled = patch.shadows;
+          sun.castShadow = patch.shadows;
+          assets.materials.forEach((m) => (m.needsUpdate = true));
+        }
+        if (needsRebuild) rebuild();
+      };
+
+      // Wipe between looks and between shuffled pizzas; everything else changes live.
+      if (lookChanged || seedChanged) withTransition(apply, lookChanged ? 700 : 500);
+      else apply();
     },
     dispose() {
       cancelAnimationFrame(raf);
       window.removeEventListener('resize', resize);
       disposeAssets();
       pipeline.dispose();
+      transition.dispose();
+      snapshot.dispose();
+      copyQuad.dispose();
       envMap.dispose();
       renderer.dispose();
     },

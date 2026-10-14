@@ -1,14 +1,130 @@
+import { EFFECTS, type EffectName } from './effects';
 import { defaultConfig, type PizzaConfig, type PizzaController } from './pizza';
 
-const STORAGE_KEY = 'perpetual-pizza:options';
 /** Cycle length that the speed slider shows as 1×. */
 const BASE_CYCLE_SECONDS = 7;
+const IDLE_MS = 3000;
 
 type Primitive = number | string | boolean;
 
-/* Read / write dotted paths like "toppings.pepperoni" on a config object. */
+/* ------------------------------------------------------------------ */
+/* Config <-> URL query string                                         */
+/* ------------------------------------------------------------------ */
+
+/** Short, readable query keys for each option. Only non-default values are written. */
+const query: Array<{
+  key: string;
+  read(c: PizzaConfig): Primitive;
+  parse(raw: string): Partial<PizzaConfig> | null;
+  isDefault(c: PizzaConfig): boolean;
+}> = [
+  {
+    key: 'speed',
+    read: (c) => round(BASE_CYCLE_SECONDS / c.cycleSeconds, 2),
+    parse: (raw) => num(raw, 0.05, 20, (v) => ({ cycleSeconds: BASE_CYCLE_SECONDS / v })),
+    isDefault: (c) => c.cycleSeconds === defaultConfig.cycleSeconds,
+  },
+  {
+    key: 'spin',
+    read: (c) => round(c.spinTurns, 2),
+    parse: (raw) => num(raw, -5, 5, (v) => ({ spinTurns: v })),
+    isDefault: (c) => c.spinTurns === defaultConfig.spinTurns,
+  },
+  {
+    key: 'dir',
+    read: (c) => (c.direction === -1 ? 'out' : 'in'),
+    parse: (raw) => (raw === 'out' ? { direction: -1 } : raw === 'in' ? { direction: 1 } : null),
+    isDefault: (c) => c.direction === defaultConfig.direction,
+  },
+  {
+    key: 'angle',
+    read: (c) => Math.round(c.elevation),
+    parse: (raw) => num(raw, 10, 90, (v) => ({ elevation: v })),
+    isDefault: (c) => c.elevation === defaultConfig.elevation,
+  },
+  {
+    key: 'lens',
+    read: (c) => Math.round(c.fov),
+    parse: (raw) => num(raw, 20, 100, (v) => ({ fov: v })),
+    isDefault: (c) => c.fov === defaultConfig.fov,
+  },
+  {
+    key: 'look',
+    read: (c) => c.effect,
+    parse: (raw) => ((EFFECTS as readonly string[]).includes(raw) ? { effect: raw as EffectName } : null),
+    isDefault: (c) => c.effect === defaultConfig.effect,
+  },
+  {
+    key: 'px',
+    read: (c) => Math.round(c.pixelSize),
+    parse: (raw) => num(raw, 1, 64, (v) => ({ pixelSize: v })),
+    isDefault: (c) => c.pixelSize === defaultConfig.pixelSize,
+  },
+  {
+    key: 'shadows',
+    read: (c) => (c.shadows ? 'on' : 'off'),
+    parse: (raw) => (raw === 'off' ? { shadows: false } : raw === 'on' ? { shadows: true } : null),
+    isDefault: (c) => c.shadows === defaultConfig.shadows,
+  },
+  ...(['pepperoni', 'mushroom', 'basil', 'olive'] as const).map((t) => ({
+    key: t,
+    read: (c: PizzaConfig) => c.toppings[t],
+    parse: (raw: string) => num(raw, 0, 100, (v) => ({ toppings: { [t]: Math.round(v) } }) as Partial<PizzaConfig>),
+    isDefault: (c: PizzaConfig) => c.toppings[t] === defaultConfig.toppings[t],
+  })),
+  {
+    key: 'seed',
+    read: (c) => c.seed,
+    parse: (raw) => num(raw, 0, 2 ** 31, (v) => ({ seed: Math.round(v) })),
+    isDefault: (c) => c.seed === defaultConfig.seed,
+  },
+];
+
+function num(raw: string, min: number, max: number, make: (v: number) => Partial<PizzaConfig>) {
+  const v = Number(raw);
+  return Number.isFinite(v) ? make(Math.min(Math.max(v, min), max)) : null;
+}
+
+const round = (v: number, places: number) => Number(v.toFixed(places));
+
+/** Options encoded in the current page URL. */
+export function optionsFromUrl(): Partial<PizzaConfig> {
+  const params = new URLSearchParams(location.search);
+  const out: Partial<PizzaConfig> = {};
+  for (const q of query) {
+    const raw = params.get(q.key);
+    if (raw === null) continue;
+    const patch = q.parse(raw);
+    if (!patch) continue;
+    const { toppings, ...rest } = patch;
+    Object.assign(out, rest);
+    if (toppings) out.toppings = { ...out.toppings, ...toppings } as PizzaConfig['toppings'];
+  }
+  return out;
+}
+
+function urlFor(config: PizzaConfig): string {
+  const params = new URLSearchParams();
+  for (const q of query) if (!q.isDefault(config)) params.set(q.key, String(q.read(config)));
+  const qs = params.toString();
+  return location.pathname + (qs ? `?${qs}` : '');
+}
+
+/* Safari rate-limits history updates, so coalesce slider drags. */
+let urlTimer = 0;
+function writeUrl(config: PizzaConfig) {
+  clearTimeout(urlTimer);
+  urlTimer = window.setTimeout(() => history.replaceState(null, '', urlFor(config)), 200);
+}
+
+/* ------------------------------------------------------------------ */
+/* Form binding                                                        */
+/* ------------------------------------------------------------------ */
+
 function getPath(obj: unknown, path: string): Primitive | undefined {
-  return path.split('.').reduce<unknown>((o, k) => (o && typeof o === 'object' ? (o as Record<string, unknown>)[k] : undefined), obj) as
+  return path
+    .split('.')
+    .reduce<unknown>((o, k) => (o && typeof o === 'object' ? (o as Record<string, unknown>)[k] : undefined), obj) as
     | Primitive
     | undefined;
 }
@@ -35,26 +151,10 @@ const formatters: Record<string, (v: Primitive) => string> = {
   pixelSize: (v) => `${v}px`,
 };
 
-export function loadSavedOptions(): Partial<PizzaConfig> {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    return raw ? (JSON.parse(raw) as Partial<PizzaConfig>) : {};
-  } catch {
-    return {};
-  }
-}
-
-function save(config: PizzaConfig) {
-  try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(config));
-  } catch {
-    /* private mode or storage blocked: options just won't persist */
-  }
-}
-
 export function initPanel(pizza: PizzaController) {
   const panel = document.getElementById('options');
   const toggle = document.getElementById('toggle-options');
+  const toast = document.querySelector<HTMLElement>('[data-toast]');
   if (!panel || !toggle) return;
 
   const inputs = Array.from(panel.querySelectorAll<HTMLInputElement | HTMLSelectElement>('[data-key]'));
@@ -66,9 +166,9 @@ export function initPanel(pizza: PizzaController) {
   /** Push the controller's config into the form. */
   function sync() {
     for (const el of inputs) {
-      const key = el.dataset.key!;
-      const value = readKey(key);
+      const value = readKey(el.dataset.key!);
       if (el instanceof HTMLInputElement && el.type === 'checkbox') el.checked = Boolean(value);
+      else if (el instanceof HTMLInputElement && el.type === 'radio') el.checked = el.value === String(value);
       else el.value = String(value);
     }
     for (const out of outputs) {
@@ -77,14 +177,13 @@ export function initPanel(pizza: PizzaController) {
       out.value = formatters[key] ? formatters[key](value) : String(value);
     }
     for (const el of conditional) {
-      const effects = el.dataset.showFor!.split(/\s+/);
-      el.hidden = !effects.includes(pizza.config.effect);
+      el.hidden = !el.dataset.showFor!.split(/\s+/).includes(pizza.config.effect);
     }
   }
 
   function apply(patch: Partial<PizzaConfig>) {
     pizza.update(patch);
-    save(pizza.config);
+    writeUrl(pizza.config);
     sync();
   }
 
@@ -103,32 +202,71 @@ export function initPanel(pizza: PizzaController) {
     el.addEventListener('change', onChange);
   }
 
+  /* Actions */
+  let toastTimer = 0;
+  const notify = (message: string) => {
+    if (!toast) return;
+    toast.textContent = message;
+    toast.classList.add('show');
+    clearTimeout(toastTimer);
+    toastTimer = window.setTimeout(() => toast.classList.remove('show'), 1800);
+  };
+
+  const share = async () => {
+    const url = location.origin + urlFor(pizza.config);
+    try {
+      await navigator.clipboard.writeText(url);
+      notify('Link copied');
+    } catch {
+      notify(url);
+    }
+  };
+
+  document.querySelectorAll('[data-action="share"]').forEach((el) => el.addEventListener('click', share));
   panel.querySelector('[data-action="shuffle"]')?.addEventListener('click', () => {
     apply({ seed: Math.floor(Math.random() * 1_000_000) });
   });
-
   panel.querySelector('[data-action="reset"]')?.addEventListener('click', () => {
-    try {
-      localStorage.removeItem(STORAGE_KEY);
-    } catch {
-      /* ignore */
-    }
-    pizza.update({ ...defaultConfig, toppings: { ...defaultConfig.toppings } });
-    sync();
+    apply({ ...defaultConfig, toppings: { ...defaultConfig.toppings } });
+    notify('Back to the house pizza');
   });
 
   /* Open / close */
+  const isOpen = () => panel.classList.contains('open');
   const setOpen = (open: boolean) => {
-    panel.hidden = false; // keep it in the layout so the slide transition runs
     panel.classList.toggle('open', open);
     toggle.setAttribute('aria-expanded', String(open));
+    document.body.classList.toggle('options-open', open);
+    wake();
   };
-  toggle.addEventListener('click', () => setOpen(!panel.classList.contains('open')));
+  toggle.addEventListener('click', () => setOpen(!isOpen()));
+  panel.querySelector('[data-action="close"]')?.addEventListener('click', () => setOpen(false));
+  // Clicking anywhere on the page outside the panel and toolbar closes it.
+  document.addEventListener('pointerdown', (event) => {
+    if (!isOpen()) return;
+    const t = event.target as Element | null;
+    if (t && (panel.contains(t) || t.closest('.toolbar'))) return;
+    setOpen(false);
+  });
   document.addEventListener('keydown', (event) => {
-    if (event.target instanceof HTMLInputElement || event.target instanceof HTMLSelectElement) return;
-    if (event.key === 'o') setOpen(!panel.classList.contains('open'));
+    const t = event.target as HTMLElement | null;
+    if (t && ['INPUT', 'SELECT', 'TEXTAREA'].includes(t.tagName)) return;
+    if (event.key === 'o') setOpen(!isOpen());
     if (event.key === 'Escape') setOpen(false);
   });
 
+  /* Fade the chrome out when the viewer just wants to watch. */
+  let idleTimer = 0;
+  function wake() {
+    document.body.classList.remove('is-idle');
+    clearTimeout(idleTimer);
+    if (!isOpen()) idleTimer = window.setTimeout(() => document.body.classList.add('is-idle'), IDLE_MS);
+  }
+  ['pointermove', 'pointerdown', 'mousemove', 'mousedown', 'click', 'keydown', 'touchstart'].forEach((e) =>
+    document.addEventListener(e, wake, { passive: true }),
+  );
+  wake();
+
   sync();
+  history.replaceState(null, '', urlFor(pizza.config));
 }

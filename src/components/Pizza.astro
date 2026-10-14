@@ -7,10 +7,10 @@ import Options from './Options.astro';
 
 <script>
   import { createPizza } from '../scripts/pizza';
-  import { initPanel, loadSavedOptions } from '../scripts/panel';
+  import { initPanel, optionsFromUrl } from '../scripts/panel';
 
   const canvas = document.getElementById('pizza') as HTMLCanvasElement;
-  const pizza = createPizza(canvas, loadSavedOptions());
+  const pizza = createPizza(canvas, optionsFromUrl());
   initPanel(pizza);
 
   // Handy for poking at from the console.
@@ -24,6 +24,7 @@ import Options from './Options.astro';
     left: 0;
     width: 100vw;
     height: 100vh;
+    height: 100dvh;
     z-index: -1;
     display: block;
     pointer-events: none;
