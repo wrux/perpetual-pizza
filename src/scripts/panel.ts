@@ -66,7 +66,7 @@ const query: Array<{
     parse: (raw) => (raw === 'off' ? { shadows: false } : raw === 'on' ? { shadows: true } : null),
     isDefault: (c) => c.shadows === defaultConfig.shadows,
   },
-  ...(['pepperoni', 'mushroom', 'basil', 'olive'] as const).map((t) => ({
+  ...(['pepperoni', 'mushroom', 'basil', 'olive', 'jalapeno', 'ham'] as const).map((t) => ({
     key: t,
     read: (c: PizzaConfig) => c.toppings[t],
     parse: (raw: string) => num(raw, 0, 100, (v) => ({ toppings: { [t]: Math.round(v) } }) as Partial<PizzaConfig>),
@@ -163,6 +163,14 @@ export function initPanel(pizza: PizzaController) {
 
   const readKey = (key: string): Primitive => (virtual[key] ? virtual[key].get(pizza.config) : (getPath(pizza.config, key) ?? ''));
 
+  /** Tell the slider's track how much of it to fill. */
+  const paintTrack = (el: HTMLInputElement) => {
+    const min = Number(el.min);
+    const max = Number(el.max);
+    const pct = ((Number(el.value) - min) / (max - min)) * 100;
+    el.style.setProperty('--p', `${pct}%`);
+  };
+
   /** Push the controller's config into the form. */
   function sync() {
     for (const el of inputs) {
@@ -170,6 +178,7 @@ export function initPanel(pizza: PizzaController) {
       if (el instanceof HTMLInputElement && el.type === 'checkbox') el.checked = Boolean(value);
       else if (el instanceof HTMLInputElement && el.type === 'radio') el.checked = el.value === String(value);
       else el.value = String(value);
+      if (el instanceof HTMLInputElement && el.type === 'range') paintTrack(el);
     }
     for (const out of outputs) {
       const key = out.dataset.output!;
@@ -192,7 +201,10 @@ export function initPanel(pizza: PizzaController) {
       const key = el.dataset.key!;
       let value: Primitive;
       if (el instanceof HTMLInputElement && el.type === 'checkbox') value = el.checked;
-      else if (el instanceof HTMLInputElement && el.type === 'range') value = Number(el.value);
+      else if (el instanceof HTMLInputElement && el.type === 'range') {
+        value = Number(el.value);
+        paintTrack(el);
+      }
       else value = Number.isNaN(Number(el.value)) ? el.value : Number(el.value);
 
       if (virtual[key]) apply(virtual[key].set(Number(value)));
@@ -223,13 +235,45 @@ export function initPanel(pizza: PizzaController) {
   };
 
   document.querySelectorAll('[data-action="share"]').forEach((el) => el.addEventListener('click', share));
-  panel.querySelector('[data-action="shuffle"]')?.addEventListener('click', () => {
-    apply({ seed: Math.floor(Math.random() * 1_000_000) });
-  });
   panel.querySelector('[data-action="reset"]')?.addEventListener('click', () => {
     apply({ ...defaultConfig, toppings: { ...defaultConfig.toppings } });
     notify('Back to the house pizza');
   });
+
+  /* Tabs: all focusable, arrows move between them, the dock animates to the new height. */
+  const tabButtons = Array.from(panel.querySelectorAll<HTMLButtonElement>('[role="tab"][data-tab]'));
+  const panes = Array.from(panel.querySelectorAll<HTMLElement>('[data-pane]'));
+  const paneHost = panel.querySelector<HTMLElement>('.dock__panes');
+  let heightTimer = 0;
+  const selectTab = (id: string, focus = false) => {
+    const before = paneHost?.offsetHeight ?? 0;
+    for (const b of tabButtons) {
+      const on = b.dataset.tab === id;
+      b.setAttribute('aria-selected', String(on));
+      if (on && focus) b.focus();
+    }
+    for (const pane of panes) pane.hidden = pane.dataset.pane !== id;
+    if (!paneHost || !panel.classList.contains('open')) return;
+    // Animate from the old height to the new one, then let it size itself again.
+    paneHost.style.height = 'auto';
+    const after = paneHost.offsetHeight;
+    if (after === before) return;
+    paneHost.style.height = `${before}px`;
+    void paneHost.offsetHeight;
+    paneHost.style.height = `${after}px`;
+    clearTimeout(heightTimer);
+    heightTimer = window.setTimeout(() => (paneHost.style.height = ''), 300);
+  };
+  for (const b of tabButtons) {
+    b.addEventListener('click', () => selectTab(b.dataset.tab!));
+    b.addEventListener('keydown', (event) => {
+      const i = tabButtons.indexOf(b);
+      const step = event.key === 'ArrowRight' ? 1 : event.key === 'ArrowLeft' ? -1 : 0;
+      if (!step) return;
+      event.preventDefault();
+      selectTab(tabButtons[(i + step + tabButtons.length) % tabButtons.length].dataset.tab!, true);
+    });
+  }
 
   /* Open / close */
   const isOpen = () => panel.classList.contains('open');
@@ -253,6 +297,57 @@ export function initPanel(pizza: PizzaController) {
     if (t && ['INPUT', 'SELECT', 'TEXTAREA'].includes(t.tagName)) return;
     if (event.key === 'o') setOpen(!isOpen());
     if (event.key === 'Escape') setOpen(false);
+  });
+
+  /* Swipe the sheet down to dismiss it on phones. */
+  const phone = window.matchMedia('(max-width: 640px)');
+  const grip = Array.from(panel.querySelectorAll<HTMLElement>('.dock__grip, .dock__header, .dock__tabs'));
+  let dragStart: number | null = null;
+  let dragY = 0;
+  let dragT = 0;
+  const onDragMove = (event: PointerEvent) => {
+    if (dragStart === null) return;
+    dragY = Math.max(0, event.clientY - dragStart);
+    panel.style.transform = `translateY(${dragY}px)`;
+  };
+  const onDragEnd = () => {
+    if (dragStart === null) return;
+    const fast = dragY / Math.max(performance.now() - dragT, 1) > 0.5;
+    dragStart = null;
+    panel.classList.remove('dragging');
+    panel.style.transform = '';
+    if (dragY > 90 || (fast && dragY > 24)) setOpen(false);
+    dragY = 0;
+    document.removeEventListener('pointermove', onDragMove);
+    document.removeEventListener('pointerup', onDragEnd);
+    document.removeEventListener('pointercancel', onDragEnd);
+  };
+  for (const el of grip) {
+    el.addEventListener('pointerdown', (event) => {
+      if (!phone.matches || !isOpen() || event.pointerType === 'mouse') return;
+      dragStart = event.clientY;
+      dragT = performance.now();
+      dragY = 0;
+      panel.classList.add('dragging');
+      document.addEventListener('pointermove', onDragMove);
+      document.addEventListener('pointerup', onDragEnd);
+      document.addEventListener('pointercancel', onDragEnd);
+    });
+  }
+
+  /* Real previews for the look tiles and topping icons, rendered once things are idle. */
+  const schedule = (window as Window & { requestIdleCallback?: (cb: () => void) => void }).requestIdleCallback ?? ((cb: () => void) => setTimeout(cb, 300));
+  schedule(async () => {
+    const previews = await pizza.renderPreviews(96);
+    for (const [effect, url] of Object.entries(previews.looks)) {
+      const el = panel.querySelector<HTMLElement>(`[data-look-preview="${effect}"]`);
+      if (!el) continue;
+      el.style.setProperty('--preview', `url(${url})`);
+      el.classList.add('has-preview');
+    }
+    for (const [kind, url] of Object.entries(previews.toppings)) {
+      panel.querySelector<HTMLElement>(`[data-topping-preview="${kind}"]`)?.style.setProperty('--preview', `url(${url})`);
+    }
   });
 
   /* Fade the chrome out when the viewer just wants to watch. */
