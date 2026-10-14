@@ -10,18 +10,10 @@ export const EFFECTS = [
   'none',
   'pixelate',
   'cartoon',
-  'sketch',
   'oil',
   'blueprint',
-  'stainedglass',
   'ascii',
   'kaleidoscope',
-  'tunnel',
-  'mirror',
-  'underwater',
-  'neon',
-  'hologram',
-  'nightvision',
   'noir',
   'vhs',
   'crt',
@@ -34,18 +26,10 @@ export const effectLabels: Record<EffectName, string> = {
   none: 'Realistic',
   pixelate: 'Pixelated',
   cartoon: 'Cartoon',
-  sketch: 'Pencil sketch',
   oil: 'Oil painting',
   blueprint: 'Blueprint',
-  stainedglass: 'Stained glass',
   ascii: 'ASCII',
   kaleidoscope: 'Kaleidoscope',
-  tunnel: 'Tunnel',
-  mirror: 'Mirror lake',
-  underwater: 'Underwater',
-  neon: 'Neon sign',
-  hologram: 'Hologram',
-  nightvision: 'Night vision',
   noir: 'Film noir',
   vhs: 'VHS tape',
   crt: 'CRT monitor',
@@ -149,80 +133,6 @@ const KaleidoscopeShader = {
       // A soft seam highlight gives the facets a cut-glass feel.
       float seam = smoothstep(0.03, 0.0, abs(a - wedge * 0.5)) * 0.12 + smoothstep(0.02, 0.0, a) * 0.12;
       gl_FragColor = vec4(col + seam, 1.0);
-    }
-  `,
-};
-
-/** Neon sign: edges traced in glowing colour on a dark background, with bloom and flicker. */
-const NeonShader = {
-  uniforms: {
-    tDiffuse: { value: null as THREE.Texture | null },
-    resolution: { value: new THREE.Vector2(1, 1) },
-    time: { value: 0 },
-  },
-  vertexShader: VERTEX,
-  fragmentShader: /* glsl */ `
-    uniform sampler2D tDiffuse;
-    uniform vec2 resolution;
-    uniform float time;
-    varying vec2 vUv;
-
-    float luma(vec3 c) { return dot(c, vec3(0.299, 0.587, 0.114)); }
-
-    // Edge strength at a point, from a Sobel on brightness.
-    float edgeAt(vec2 uv, vec2 px) {
-      float tl = luma(texture2D(tDiffuse, uv + px * vec2(-1.0,  1.0)).rgb);
-      float t  = luma(texture2D(tDiffuse, uv + px * vec2( 0.0,  1.0)).rgb);
-      float tr = luma(texture2D(tDiffuse, uv + px * vec2( 1.0,  1.0)).rgb);
-      float l  = luma(texture2D(tDiffuse, uv + px * vec2(-1.0,  0.0)).rgb);
-      float r  = luma(texture2D(tDiffuse, uv + px * vec2( 1.0,  0.0)).rgb);
-      float bl = luma(texture2D(tDiffuse, uv + px * vec2(-1.0, -1.0)).rgb);
-      float b  = luma(texture2D(tDiffuse, uv + px * vec2( 0.0, -1.0)).rgb);
-      float br = luma(texture2D(tDiffuse, uv + px * vec2( 1.0, -1.0)).rgb);
-      float gx = -tl - 2.0 * l - bl + tr + 2.0 * r + br;
-      float gy = -tl - 2.0 * t - tr + bl + 2.0 * b + br;
-      return sqrt(gx * gx + gy * gy);
-    }
-
-    vec3 tubeColour(vec3 c) {
-      // Push the source colour to a saturated neon: reds go magenta-pink, pale cheese goes cyan, greens go lime.
-      float lum = luma(c);
-      vec3 pink = vec3(1.0, 0.2, 0.75);
-      vec3 cyan = vec3(0.2, 0.95, 1.0);
-      vec3 lime = vec3(0.6, 1.0, 0.25);
-      float redness = clamp((c.r - c.g) * 2.0, 0.0, 1.0);
-      float greenness = clamp((c.g - c.r) * 2.0, 0.0, 1.0);
-      vec3 col = mix(cyan, pink, redness);
-      col = mix(col, lime, greenness);
-      return mix(col, vec3(1.0), smoothstep(0.85, 1.0, lum) * 0.3);
-    }
-
-    void main() {
-      vec2 px = 1.5 / resolution;
-      vec3 src = texture2D(tDiffuse, vUv).rgb;
-      float edge = smoothstep(0.18, 0.6, edgeAt(vUv, px));
-
-      // Wider, dimmer samples give the glow around each tube.
-      float glow = 0.0;
-      for (int i = 1; i <= 4; i++) {
-        float d = float(i) * 2.5;
-        glow += edgeAt(vUv + vec2( d, 0.0) / resolution, px);
-        glow += edgeAt(vUv + vec2(-d, 0.0) / resolution, px);
-        glow += edgeAt(vUv + vec2(0.0,  d) / resolution, px);
-        glow += edgeAt(vUv + vec2(0.0, -d) / resolution, px);
-      }
-      glow = smoothstep(0.3, 2.5, glow);
-
-      vec3 tube = tubeColour(src);
-      // Mains hum: a barely-there flicker, plus the odd stutter.
-      float flicker = 0.93 + 0.07 * sin(time * 60.0) * sin(time * 3.1) + 0.05 * step(0.985, fract(sin(floor(time * 12.0)) * 43758.5));
-
-      vec3 col = vec3(0.02, 0.01, 0.05);
-      col += tube * glow * 0.45;
-      col += mix(tube, vec3(1.0), 0.35) * edge * 1.4;
-      // The unlit pizza shows faintly, like a dark wall behind the sign.
-      col += src * 0.06;
-      gl_FragColor = vec4(col * flicker, 1.0);
     }
   `,
 };
@@ -646,35 +556,6 @@ const simpleShader = (body: string) => ({
   fragmentShader: GLSL_COMMON + body,
 });
 
-/** Graphite lines and cross-hatching on paper. */
-const SketchShader = simpleShader(/* glsl */ `
-  void main() {
-    vec2 px = 1.0 / resolution;
-    vec3 src = texture2D(tDiffuse, vUv).rgb;
-    float lum = luma(src);
-    float edge = smoothstep(0.15, 0.5, sobel(vUv, px * 1.2));
-
-    // Hatching: diagonal strokes that thicken as the tone gets darker.
-    vec2 p = vUv * resolution;
-    float dark = 1.0 - lum;
-    float h1 = smoothstep(0.55, 0.95, abs(sin((p.x + p.y) * 0.35))) * smoothstep(0.35, 0.75, dark);
-    float h2 = smoothstep(0.55, 0.95, abs(sin((p.x - p.y) * 0.35))) * smoothstep(0.6, 0.9, dark);
-    float hatch = max(h1, h2) * 0.55;
-
-    // Paper with a little tooth, and pencil pressure that varies.
-    float grain = noise(p * 0.35) * 0.08 + noise(p * 2.0) * 0.04;
-    vec3 paper = vec3(0.96, 0.94, 0.88) - grain;
-    float pressure = 0.7 + 0.3 * noise(vUv * 40.0 + time * 0.05);
-    vec3 graphite = vec3(0.16, 0.16, 0.19);
-
-    float ink = clamp(edge * pressure + hatch, 0.0, 1.0);
-    vec3 col = mix(paper, graphite, ink);
-    // A faint wash of the original tone keeps the forms readable.
-    col -= (1.0 - lum) * 0.12;
-    gl_FragColor = vec4(col, 1.0);
-  }
-`);
-
 /** Kuwahara filter: the frame dissolves into brushy patches of flat colour. */
 const OilShader = simpleShader(/* glsl */ `
   const int R = 3;
@@ -730,36 +611,6 @@ const BlueprintShader = simpleShader(/* glsl */ `
   }
 `);
 
-/** Voronoi cells of flat colour with dark lead between them and light behind. */
-const StainedGlassShader = simpleShader(/* glsl */ `
-  vec2 cellPoint(vec2 cell) { return cell + vec2(hash(cell), hash(cell + 7.3)); }
-  void main() {
-    float aspect = resolution.x / resolution.y;
-    vec2 p = vUv * vec2(aspect, 1.0) * 14.0;
-    vec2 cell = floor(p);
-    float d1 = 1e9;
-    float d2 = 1e9;
-    vec2 nearest = cell;
-    for (int j = -1; j <= 1; j++) {
-      for (int i = -1; i <= 1; i++) {
-        vec2 c = cell + vec2(float(i), float(j));
-        float d = distance(p, cellPoint(c));
-        if (d < d1) { d2 = d1; d1 = d; nearest = c; } else if (d < d2) { d2 = d; }
-      }
-    }
-    vec2 centreUv = cellPoint(nearest) / (vec2(aspect, 1.0) * 14.0);
-    vec3 col = texture2D(tDiffuse, centreUv).rgb;
-    // Saturated, back-lit glass.
-    float l = luma(col);
-    col = mix(vec3(l), col, 1.6);
-    col = pow(col, vec3(0.85)) * 1.1;
-    float lead = smoothstep(0.08, 0.0, d2 - d1);
-    float bevel = smoothstep(0.25, 0.08, d2 - d1) * 0.18;
-    col = mix(col + bevel, vec3(0.05, 0.04, 0.05), lead);
-    gl_FragColor = vec4(col, 1.0);
-  }
-`);
-
 /** Characters picked by brightness, drawn on a dark terminal in the source colour. */
 const AsciiShader = simpleShader(/* glsl */ `
   // 5x5 glyph bitmaps, darkest to brightest, as 25-bit integers.
@@ -797,118 +648,6 @@ const AsciiShader = simpleShader(/* glsl */ `
   }
 `);
 
-/** Polar remap that streaks the picture into a tunnel the zoom falls down. */
-const TunnelShader = simpleShader(/* glsl */ `
-  void main() {
-    float aspect = resolution.x / resolution.y;
-    vec2 c = (vUv - 0.5) * vec2(aspect, 1.0);
-    float r = length(c);
-    float a = atan(c.y, c.x);
-    vec2 uv = vec2(a / 6.28318 + 0.5 + time * 0.02, 0.25 / max(r, 0.02) + time * 0.15);
-    uv = fract(uv);
-    // Mirror the texture at its edges so the tiling has no seams.
-    uv = 1.0 - abs(1.0 - 2.0 * uv);
-    vec3 col = texture2D(tDiffuse, uv).rgb;
-    float depth = smoothstep(0.0, 0.55, r);
-    col *= mix(0.15, 1.0, depth);
-    gl_FragColor = vec4(col, 1.0);
-  }
-`);
-
-/** The bottom half reflects the top in rippling water. */
-const MirrorShader = simpleShader(/* glsl */ `
-  void main() {
-    vec2 uv = vUv;
-    float horizon = 0.52;
-    if (uv.y < horizon) {
-      float depth = (horizon - uv.y) / horizon;
-      float ripple = sin(uv.y * 90.0 + time * 2.5) * 0.006 * depth + sin(uv.x * 40.0 - time * 1.7) * 0.004;
-      vec2 r = vec2(uv.x + ripple, horizon + (horizon - uv.y) * 0.95 + ripple);
-      vec3 col = texture2D(tDiffuse, r).rgb;
-      col = mix(col, vec3(0.1, 0.18, 0.3), 0.3 + depth * 0.35);
-      col *= 0.9 - depth * 0.3;
-      col += vec3(0.6, 0.75, 0.9) * smoothstep(0.985, 1.0, sin(uv.y * 90.0 + time * 2.5)) * 0.15 * (1.0 - depth);
-      gl_FragColor = vec4(col, 1.0);
-    } else {
-      vec3 col = texture2D(tDiffuse, uv).rgb;
-      col += vec3(0.5, 0.65, 0.9) * smoothstep(0.015, 0.0, uv.y - horizon) * 0.3;
-      gl_FragColor = vec4(col, 1.0);
-    }
-  }
-`);
-
-/** Blue tint, slow wobble and caustic light drifting over everything. */
-const UnderwaterShader = simpleShader(/* glsl */ `
-  float caustic(vec2 p) {
-    float c = 0.0;
-    c += abs(sin(p.x * 7.0 + time * 1.3 + sin(p.y * 5.0 + time)));
-    c += abs(sin(p.y * 8.0 - time * 1.1 + sin(p.x * 6.0 - time * 0.7)));
-    c += abs(sin((p.x + p.y) * 5.0 + time * 0.9));
-    return pow(c / 3.0, 4.0);
-  }
-  void main() {
-    vec2 uv = vUv + vec2(sin(vUv.y * 12.0 + time * 1.2), cos(vUv.x * 10.0 + time * 0.9)) * 0.006;
-    vec3 col = texture2D(tDiffuse, uv).rgb;
-    col = mix(col, col * vec3(0.55, 0.85, 1.1), 0.55);
-    col += vec3(0.7, 0.9, 1.0) * caustic(uv * 3.0) * 0.5;
-    // Light falls off with depth, and specks drift past.
-    col *= 0.7 + 0.3 * uv.y;
-    float specks = step(0.995, noise(uv * 300.0 + vec2(0.0, time * 20.0))) * 0.5;
-    col += specks;
-    vec2 d = vUv - 0.5;
-    col *= 1.0 - dot(d, d) * 0.8;
-    gl_FragColor = vec4(col, 1.0);
-  }
-`);
-
-/** Cyan projection with interference bands, flicker and a ghosted copy. */
-const HologramShader = simpleShader(/* glsl */ `
-  void main() {
-    vec2 uv = vUv;
-    float band = sin(uv.y * 400.0 + time * 6.0);
-    float drift = step(0.97, sin(uv.y * 9.0 - time * 1.4)) * 0.01;
-    uv.x += drift;
-    vec3 src = texture2D(tDiffuse, uv).rgb;
-    vec3 ghost = texture2D(tDiffuse, uv + vec2(0.012, 0.006)).rgb;
-    float l = luma(src) * 0.85 + luma(ghost) * 0.3;
-    vec3 cyan = vec3(0.25, 0.9, 1.0);
-    vec3 col = cyan * l;
-    col += cyan * smoothstep(0.6, 1.0, l) * 0.4; // bright edges glow
-    col *= 0.75 + 0.25 * band;
-    float flicker = 0.9 + 0.1 * sin(time * 40.0) * sin(time * 2.3);
-    col *= flicker;
-    col += vec3(0.0, 0.03, 0.05);
-    gl_FragColor = vec4(col, 1.0);
-  }
-`);
-
-/** Green image intensifier with a scope vignette, blown highlights and grain. */
-const NightVisionShader = simpleShader(/* glsl */ `
-  void main() {
-    vec3 src = texture2D(tDiffuse, vUv).rgb;
-    // Soft bloom from a few wide samples.
-    float l = luma(src);
-    float bloom = 0.0;
-    for (int i = 0; i < 4; i++) {
-      float a = float(i) * 1.5708 + time * 0.1;
-      bloom += luma(texture2D(tDiffuse, vUv + vec2(cos(a), sin(a)) * 0.012).rgb);
-    }
-    bloom /= 4.0;
-    float v = pow(clamp(l * 1.3 + bloom * 0.5, 0.0, 1.5), 0.9);
-    vec3 col = vec3(0.2, 1.0, 0.35) * v;
-    col += vec3(0.6, 1.0, 0.7) * smoothstep(0.95, 1.4, v) * 0.5;
-    float grain = (hash(vUv * resolution + fract(time * 13.0) * 100.0) - 0.5) * 0.18;
-    col += grain;
-    col *= 0.85 + 0.15 * sin(vUv.y * resolution.y * 2.0);
-    // Scope.
-    float aspect = resolution.x / resolution.y;
-    float r = length((vUv - 0.5) * vec2(aspect, 1.0));
-    col *= 1.0 - smoothstep(0.42, 0.52, r);
-    col += vec3(0.0, 0.02, 0.0);
-    gl_FragColor = vec4(col, 1.0);
-  }
-`);
-
 /** High-contrast black and white with diffusion, grain, gate weave and dust. */
 const NoirShader = simpleShader(/* glsl */ `
   void main() {
@@ -940,16 +679,9 @@ const NoirShader = simpleShader(/* glsl */ `
 
 /** Looks that are one shader over the plain render. */
 const singlePassLooks: Partial<Record<EffectName, ReturnType<typeof simpleShader>>> = {
-  sketch: SketchShader,
   oil: OilShader,
   blueprint: BlueprintShader,
-  stainedglass: StainedGlassShader,
   ascii: AsciiShader,
-  tunnel: TunnelShader,
-  mirror: MirrorShader,
-  underwater: UnderwaterShader,
-  hologram: HologramShader,
-  nightvision: NightVisionShader,
   noir: NoirShader,
 };
 
@@ -1007,15 +739,6 @@ export function createPipeline(ctx: EffectContext): EffectPipeline {
         const k = add(new ShaderPass(KaleidoscopeShader));
         resolutionPasses.push(k);
         timedPasses.push(k);
-      }
-      break;
-    case 'neon':
-      add(new RenderPass(scene, camera));
-      add(new OutputPass());
-      {
-        const neon = add(new ShaderPass(NeonShader));
-        resolutionPasses.push(neon);
-        timedPasses.push(neon);
       }
       break;
     case 'vhs':
