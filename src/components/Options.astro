@@ -41,12 +41,6 @@ const tabs = [
         <path d="M14 11a5 5 0 0 0-7.5-.5l-3 3a5 5 0 0 0 7 7l1.7-1.7" />
       </svg>
     </button>
-    <button type="button" id="toggle-options" class="toolbar__button" title="Customise (O)" aria-label="Customise the pizza" aria-expanded="false" aria-controls="options">
-      <svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
-        <path d="M4 7h10M18 7h2M4 12h2M10 12h10M4 17h8M16 17h4" />
-        <circle cx="16" cy="7" r="2" /><circle cx="8" cy="12" r="2" /><circle cx="14" cy="17" r="2" />
-      </svg>
-    </button>
     <button type="button" id="toggle-fullscreen" class="toolbar__button toggle-fullscreen" title="Fullscreen (F)" aria-label="Toggle fullscreen">
       <svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="fullscreen-out">
         <path d="M8 3H3v5M16 3h5v5M8 21H3v-5M16 21h5v-5" />
@@ -57,6 +51,14 @@ const tabs = [
     </button>
   </nav>
 </div>
+
+<button type="button" id="toggle-options" class="chrome launcher" title="Customise (O)" aria-expanded="false" aria-controls="options">
+  <svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+    <path d="M4 7h10M18 7h2M4 12h2M10 12h10M4 17h8M16 17h4" />
+    <circle cx="16" cy="7" r="2" /><circle cx="8" cy="12" r="2" /><circle cx="14" cy="17" r="2" />
+  </svg>
+  <span>Customise</span>
+</button>
 
 <aside id="options" class="dock" role="dialog" aria-labelledby="options-title">
   <div class="dock__grip" aria-hidden="true"></div>
@@ -348,6 +350,54 @@ const tabs = [
     }
   }
 
+  /* ---- Launcher ------------------------------------------------------ */
+  .launcher {
+    left: 50%;
+    bottom: calc(1.25rem + env(safe-area-inset-bottom));
+    display: inline-flex;
+    align-items: center;
+    gap: 0.55em;
+    height: 2.9rem;
+    padding: 0 1.35rem 0 1.1rem;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 5rem;
+    background: rgba(20, 8, 2, 0.5);
+    backdrop-filter: blur(16px) saturate(140%);
+    -webkit-backdrop-filter: blur(16px) saturate(140%);
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.25);
+    color: #fff;
+    font: inherit;
+    font-size: 0.9rem;
+    font-weight: 700;
+    cursor: pointer;
+    transform: translateX(-50%);
+    transition:
+      opacity 220ms ease,
+      transform 320ms cubic-bezier(0.2, 0.8, 0.2, 1),
+      background 200ms ease;
+  }
+
+  .launcher svg {
+    width: 1.15rem;
+    height: 1.15rem;
+  }
+
+  .launcher:hover,
+  .launcher:focus-visible {
+    background: rgb(var(--primary));
+  }
+
+  .launcher:active {
+    transform: translateX(-50%) scale(0.97);
+  }
+
+  /* While the dock is up the launcher drops out of the way. */
+  body.options-open .launcher {
+    opacity: 0;
+    transform: translate(-50%, 1.5rem);
+    pointer-events: none;
+  }
+
   /* ---- Dock ---------------------------------------------------------- */
   .dock {
     --pad: 1.1rem;
@@ -365,18 +415,15 @@ const tabs = [
     box-shadow: 0 16px 48px rgba(0, 0, 0, 0.35);
     color: #fff;
     font-size: 0.85rem;
-    transform: translate(-50%, 1.25rem) scale(0.98);
-    opacity: 0;
+    transform: translate(-50%, calc(100% + 2.5rem));
     visibility: hidden;
     transition:
-      transform 320ms cubic-bezier(0.2, 0.8, 0.2, 1),
-      opacity 220ms ease,
-      visibility 0s linear 320ms;
+      transform 380ms cubic-bezier(0.2, 0.8, 0.2, 1),
+      visibility 0s linear 380ms;
   }
 
   .dock.open {
-    transform: translate(-50%, 0) scale(1);
-    opacity: 1;
+    transform: translate(-50%, 0);
     visibility: visible;
     transition-delay: 0s;
   }
@@ -929,7 +976,6 @@ const tabs = [
       bottom: calc(0.75rem + env(safe-area-inset-bottom));
       width: auto;
       transform: translateY(calc(100% + 2rem));
-      opacity: 1;
     }
 
     .dock.open {
