@@ -560,7 +560,7 @@ const OldFilmShader = simpleShader(/* glsl */ `
   }
 `);
 
-/** 15-bit colour (32 levels a channel) with a Bayer dither, as the 16-bit consoles drew it. */
+/** 1990s PC: chunky pixels and the classic 16-colour palette with ordered dithering. */
 const SixteenBitShader = simpleShader(/* glsl */ `
   uniform float pixelSize;
   float bayer(vec2 p) {
@@ -575,16 +575,45 @@ const SixteenBitShader = simpleShader(/* glsl */ `
     for (int k = 0; k < 16; k++) { if (k == i) return m[k] / 16.0; }
     return 0.0;
   }
+  // The standard 16-colour palette every DOS game started from.
+  vec3 palette(int i) {
+    if (i == 0) return vec3(0.0, 0.0, 0.0);
+    if (i == 1) return vec3(0.0, 0.0, 0.67);
+    if (i == 2) return vec3(0.0, 0.67, 0.0);
+    if (i == 3) return vec3(0.0, 0.67, 0.67);
+    if (i == 4) return vec3(0.67, 0.0, 0.0);
+    if (i == 5) return vec3(0.67, 0.0, 0.67);
+    if (i == 6) return vec3(0.67, 0.33, 0.0);
+    if (i == 7) return vec3(0.67, 0.67, 0.67);
+    if (i == 8) return vec3(0.33, 0.33, 0.33);
+    if (i == 9) return vec3(0.33, 0.33, 1.0);
+    if (i == 10) return vec3(0.33, 1.0, 0.33);
+    if (i == 11) return vec3(0.33, 1.0, 1.0);
+    if (i == 12) return vec3(1.0, 0.33, 0.33);
+    if (i == 13) return vec3(1.0, 0.33, 1.0);
+    if (i == 14) return vec3(1.0, 1.0, 0.33);
+    return vec3(1.0, 1.0, 1.0);
+  }
   void main() {
     vec3 c = texture2D(tDiffuse, vUv).rgb;
-    // Punchier colour, like a cartridge palette chosen by hand.
+    // Lift the midtones and saturation so the pizza lands on yellow, brown and red rather than grey.
     float l = luma(c);
-    c = clamp(mix(vec3(l), c, 1.35) * 1.05, 0.0, 1.0);
-    // Dither in screen pixels of the pixelated grid, then snap to 32 levels per channel.
+    c = clamp(mix(vec3(l), c, 1.3), 0.0, 1.0);
+    c = pow(c, vec3(0.9));
+    // Ordered dither pushes each pixel toward a neighbouring palette entry.
     vec2 cell = floor(vUv * resolution / pixelSize);
-    float d = (bayer(cell) - 0.5) / 31.0;
-    c = floor((c + d) * 31.0 + 0.5) / 31.0;
-    gl_FragColor = vec4(c, 1.0);
+    c += (bayer(cell) - 0.5) * 0.3;
+    // Nearest palette colour.
+    float best = 1e9;
+    vec3 col = vec3(0.0);
+    for (int i = 0; i < 16; i++) {
+      vec3 p = palette(i);
+      vec3 d = c - p;
+      // Weight like the eye does so browns don't turn purple.
+      float dist = dot(d * d, vec3(0.3, 0.59, 0.11));
+      if (dist < best) { best = dist; col = p; }
+    }
+    gl_FragColor = vec4(col, 1.0);
   }
 `);
 SixteenBitShader.uniforms = { ...SixteenBitShader.uniforms, pixelSize: { value: 4 } } as typeof SixteenBitShader.uniforms & { pixelSize: { value: number } };
@@ -655,9 +684,9 @@ export function createPipeline(ctx: EffectContext): EffectPipeline {
       }
       break;
     case 'retro16': {
-      // Roughly a 200-line console picture whatever the screen size.
+      // A 320x200-ish picture whatever the screen size: big, square pixels.
       const height = renderer.getSize(new THREE.Vector2()).y;
-      const size = Math.max(2, Math.round(height / 200));
+      const size = Math.max(3, Math.round(height / 120));
       pixelated = add(new RenderPixelatedPass(size, scene, camera, { normalEdgeStrength: 0, depthEdgeStrength: 0 }));
       add(new OutputPass());
       const p = add(new ShaderPass(SixteenBitShader));
