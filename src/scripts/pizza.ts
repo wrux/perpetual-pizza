@@ -62,7 +62,7 @@ export const defaultConfig: PizzaConfig = {
   elevation: 41,
   fov: 42,
   effect: 'none',
-  pixelSize: 6,
+  pixelSize: 12,
 };
 
 /** Start-up progress: a human caption and a 0..1 fraction. */
