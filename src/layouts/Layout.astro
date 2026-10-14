@@ -1,10 +1,7 @@
 ---
-import Tray from '../components/Tray.astro';
-
 export interface Props {
   cover?: string;
   description?: string;
-  pizza?: string;
   title?: string;
 }
 
@@ -18,7 +15,6 @@ const currentPath = Astro.url.pathname;
 const {
   cover = defaultCover,
   description = defaultDescription,
-  pizza,
   title = defaultTitle,
 } = Astro.props;
 ---
@@ -28,7 +24,6 @@ const {
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <base href={siteUrl} />
 
     <title>{title}</title>
     <meta name="description" content={description} />
@@ -88,7 +83,6 @@ const {
         >
       </button>
     </div>
-    <Tray pizza={pizza} />
   </body>
 </html>
 
@@ -106,6 +100,8 @@ const {
   document.addEventListener(
     'keydown',
     (event) => {
+      const target = event.target as HTMLElement | null;
+      if (target && ['INPUT', 'SELECT', 'BUTTON', 'TEXTAREA'].includes(target.tagName)) return;
       if (['Enter', 'f'].includes(event.key)) toggleFullScreen();
     },
     false,
@@ -192,21 +188,6 @@ const {
     margin-left: 0.666em;
   }
 
-  .button--nft {
-    position: absolute;
-    z-index: 5;
-    top: 2rem;
-    left: 50%;
-    transform: translateX(-50%);
-    padding-right: 16px;
-  }
-
-  .button--nft svg {
-    width: 3.2em;
-    height: 3.2em;
-    margin-left: 0.666em;
-    filter: drop-shadow(3px 5px 2px rgb(0, 0, 0, 0.25));
-  }
 
   .toggle-fullscreen {
     position: absolute;

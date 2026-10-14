@@ -1,27 +1,31 @@
 ---
-export interface Props {
-  slug?: string;
-}
-
-const { slug = '01' } = Astro.props;
+import Options from './Options.astro';
 ---
 
-<article>
-  <video poster={`/pizza/${slug}/cover.jpg`} autoplay muted loop playsinline>
-    <source src={`/pizza/${slug}/pizza.mp4`} type="video/mp4" />
-  </video>
-</article>
+<canvas id="pizza" class="pizza" aria-label="The never ending digital pizza"></canvas>
+<Options />
 
-<style scoped>
-  video {
+<script>
+  import { createPizza } from '../scripts/pizza';
+  import { initPanel, loadSavedOptions } from '../scripts/panel';
+
+  const canvas = document.getElementById('pizza') as HTMLCanvasElement;
+  const pizza = createPizza(canvas, loadSavedOptions());
+  initPanel(pizza);
+
+  // Handy for poking at from the console.
+  (window as unknown as { pizza: typeof pizza }).pizza = pizza;
+</script>
+
+<style>
+  .pizza {
     position: fixed;
     top: 0;
     left: 0;
     width: 100vw;
     height: 100vh;
     z-index: -1;
+    display: block;
     pointer-events: none;
-    overflow: hidden;
-    object-fit: cover;
   }
 </style>

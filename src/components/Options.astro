@@ -1,0 +1,218 @@
+---
+import { EFFECTS, effectLabels } from '../scripts/effects';
+---
+
+<button id="toggle-options" type="button" class="button options-toggle" aria-expanded="false" aria-controls="options">
+  Options
+  <svg xmlns="http://www.w3.org/2000/svg" aria-hidden="true" class="button__icon" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h10M4 18h6"></path>
+  </svg>
+</button>
+
+<aside id="options" class="options" aria-label="Pizza options" hidden>
+  <form class="options__form" autocomplete="off">
+    <fieldset>
+      <legend>Motion</legend>
+      <label>
+        <span>Speed <output data-output="speed"></output></span>
+        <input type="range" data-key="speed" min="0.25" max="4" step="0.05" />
+      </label>
+      <label>
+        <span>Spin <output data-output="spinTurns"></output></span>
+        <input type="range" data-key="spinTurns" min="-1" max="1" step="0.05" />
+      </label>
+      <label class="options__row">
+        <span>Direction</span>
+        <select data-key="direction">
+          <option value="1">Zoom in</option>
+          <option value="-1">Zoom out</option>
+        </select>
+      </label>
+    </fieldset>
+
+    <fieldset>
+      <legend>Camera</legend>
+      <label>
+        <span>Angle <output data-output="elevation"></output></span>
+        <input type="range" data-key="elevation" min="15" max="90" step="1" />
+      </label>
+      <label>
+        <span>Lens <output data-output="fov"></output></span>
+        <input type="range" data-key="fov" min="25" max="80" step="1" />
+      </label>
+    </fieldset>
+
+    <fieldset>
+      <legend>Look</legend>
+      <label class="options__row">
+        <span>Shader</span>
+        <select data-key="effect">
+          {EFFECTS.map((e) => <option value={e}>{effectLabels[e]}</option>)}
+        </select>
+      </label>
+      <label data-show-for="pixelate gameboy">
+        <span>Pixel size <output data-output="pixelSize"></output></span>
+        <input type="range" data-key="pixelSize" min="2" max="24" step="1" />
+      </label>
+      <label class="options__row">
+        <span>Shadows</span>
+        <input type="checkbox" data-key="shadows" />
+      </label>
+    </fieldset>
+
+    <fieldset>
+      <legend>Toppings</legend>
+      <label>
+        <span>Pepperoni <output data-output="toppings.pepperoni"></output></span>
+        <input type="range" data-key="toppings.pepperoni" min="0" max="40" step="1" />
+      </label>
+      <label>
+        <span>Mushroom <output data-output="toppings.mushroom"></output></span>
+        <input type="range" data-key="toppings.mushroom" min="0" max="40" step="1" />
+      </label>
+      <label>
+        <span>Basil <output data-output="toppings.basil"></output></span>
+        <input type="range" data-key="toppings.basil" min="0" max="40" step="1" />
+      </label>
+      <label>
+        <span>Olives <output data-output="toppings.olive"></output></span>
+        <input type="range" data-key="toppings.olive" min="0" max="40" step="1" />
+      </label>
+      <button type="button" class="button button--small" data-action="shuffle">Shuffle toppings</button>
+    </fieldset>
+
+    <button type="button" class="button button--small button--ghost" data-action="reset">Reset everything</button>
+  </form>
+</aside>
+
+<style>
+  .options-toggle {
+    position: fixed;
+    z-index: 6;
+    top: 2rem;
+    left: 2rem;
+  }
+
+  body.is-fullscreen .options-toggle,
+  body.is-fullscreen .options {
+    display: none;
+  }
+
+  .options {
+    position: fixed;
+    z-index: 5;
+    top: 0;
+    left: 0;
+    bottom: 0;
+    width: min(20rem, 100vw);
+    padding: 5.5rem 1.5rem 2rem;
+    overflow-y: auto;
+    background: rgba(20, 8, 2, 0.55);
+    backdrop-filter: blur(18px);
+    -webkit-backdrop-filter: blur(18px);
+    box-shadow: 4px 0 24px rgba(0, 0, 0, 0.25);
+    color: #fff;
+    transform: translateX(-100%);
+    transition: transform 333ms ease-in-out;
+  }
+
+  .options[hidden] {
+    display: block;
+    visibility: hidden;
+  }
+
+  .options.open {
+    transform: translateX(0);
+    visibility: visible;
+  }
+
+  .options__form {
+    display: flex;
+    flex-direction: column;
+    gap: 1.25rem;
+  }
+
+  fieldset {
+    display: flex;
+    flex-direction: column;
+    gap: 0.6rem;
+    margin: 0;
+    padding: 0;
+    border: 0;
+  }
+
+  legend {
+    padding: 0;
+    margin-bottom: 0.6rem;
+    font-size: 0.75rem;
+    font-weight: bold;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    opacity: 0.7;
+  }
+
+  label {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+    font-size: 0.9rem;
+  }
+
+  label > span {
+    display: flex;
+    justify-content: space-between;
+  }
+
+  label[hidden] {
+    display: none;
+  }
+
+  output {
+    font-variant-numeric: tabular-nums;
+    opacity: 0.7;
+  }
+
+  .options__row {
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  input[type='range'] {
+    width: 100%;
+    accent-color: rgb(var(--primary));
+  }
+
+  input[type='checkbox'] {
+    width: 1.1rem;
+    height: 1.1rem;
+    accent-color: rgb(var(--primary));
+  }
+
+  select {
+    padding: 0.3em 0.6em;
+    border: 2px solid rgba(255, 255, 255, 0.3);
+    border-radius: 0.5rem;
+    background: rgba(0, 0, 0, 0.35);
+    color: #fff;
+    font: inherit;
+  }
+
+  .button--small {
+    height: auto;
+    padding: 0.4em 1.2em;
+    font-size: 0.85rem;
+    align-self: flex-start;
+  }
+
+  .button--ghost {
+    --background-opacity: 0;
+    border-color: rgba(255, 255, 255, 0.4);
+  }
+
+  .button--ghost:hover,
+  .button--ghost:focus {
+    --background-opacity: 0;
+    border-color: #fff;
+  }
+</style>
