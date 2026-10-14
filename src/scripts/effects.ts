@@ -9,6 +9,7 @@ import { Pass, FullScreenQuad } from 'three/examples/jsm/postprocessing/Pass.js'
 export const EFFECTS = [
   'none',
   'pixelate',
+  'retro16',
   'oil',
   'film',
   'vhs',
@@ -21,6 +22,7 @@ export type EffectName = (typeof EFFECTS)[number];
 export const effectLabels: Record<EffectName, string> = {
   none: 'Default',
   pixelate: 'Pixel',
+  retro16: '16-bit',
   oil: 'Oil Painting',
   film: 'Old Film',
   vhs: 'VHS',
@@ -558,6 +560,35 @@ const OldFilmShader = simpleShader(/* glsl */ `
   }
 `);
 
+/** 15-bit colour (32 levels a channel) with a Bayer dither, as the 16-bit consoles drew it. */
+const SixteenBitShader = simpleShader(/* glsl */ `
+  uniform float pixelSize;
+  float bayer(vec2 p) {
+    int x = int(mod(p.x, 4.0));
+    int y = int(mod(p.y, 4.0));
+    int i = x + y * 4;
+    float m[16];
+    m[0] = 0.0;  m[1] = 8.0;  m[2] = 2.0;  m[3] = 10.0;
+    m[4] = 12.0; m[5] = 4.0;  m[6] = 14.0; m[7] = 6.0;
+    m[8] = 3.0;  m[9] = 11.0; m[10] = 1.0; m[11] = 9.0;
+    m[12] = 15.0; m[13] = 7.0; m[14] = 13.0; m[15] = 5.0;
+    for (int k = 0; k < 16; k++) { if (k == i) return m[k] / 16.0; }
+    return 0.0;
+  }
+  void main() {
+    vec3 c = texture2D(tDiffuse, vUv).rgb;
+    // Punchier colour, like a cartridge palette chosen by hand.
+    float l = luma(c);
+    c = clamp(mix(vec3(l), c, 1.35) * 1.05, 0.0, 1.0);
+    // Dither in screen pixels of the pixelated grid, then snap to 32 levels per channel.
+    vec2 cell = floor(vUv * resolution / pixelSize);
+    float d = (bayer(cell) - 0.5) / 31.0;
+    c = floor((c + d) * 31.0 + 0.5) / 31.0;
+    gl_FragColor = vec4(c, 1.0);
+  }
+`);
+SixteenBitShader.uniforms = { ...SixteenBitShader.uniforms, pixelSize: { value: 4 } } as typeof SixteenBitShader.uniforms & { pixelSize: { value: number } };
+
 /** Looks that are one shader over the plain render. */
 const singlePassLooks: Partial<Record<EffectName, ReturnType<typeof simpleShader>>> = {
   oil: OilShader,
@@ -623,6 +654,17 @@ export function createPipeline(ctx: EffectContext): EffectPipeline {
         timedPasses.push(crt);
       }
       break;
+    case 'retro16': {
+      // Roughly a 200-line console picture whatever the screen size.
+      const height = renderer.getSize(new THREE.Vector2()).y;
+      const size = Math.max(2, Math.round(height / 200));
+      pixelated = add(new RenderPixelatedPass(size, scene, camera, { normalEdgeStrength: 0, depthEdgeStrength: 0 }));
+      add(new OutputPass());
+      const p = add(new ShaderPass(SixteenBitShader));
+      (p.uniforms.pixelSize as { value: number }).value = size * renderer.getPixelRatio();
+      resolutionPasses.push(p);
+      break;
+    }
     case 'lsd':
       add(new RenderPass(scene, camera));
       add(new OutputPass());
