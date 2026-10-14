@@ -6,7 +6,7 @@ import { OutputPass } from 'three/examples/jsm/postprocessing/OutputPass.js';
 import { ShaderPass } from 'three/examples/jsm/postprocessing/ShaderPass.js';
 import { Pass, FullScreenQuad } from 'three/examples/jsm/postprocessing/Pass.js';
 
-export const EFFECTS = ['none', 'pixelate', 'cartoon', 'kaleidoscope', 'thermal', 'vhs', 'crt', 'psychedelic', 'lsd'] as const;
+export const EFFECTS = ['none', 'pixelate', 'cartoon', 'kaleidoscope', 'neon', 'vhs', 'crt', 'psychedelic', 'lsd'] as const;
 export type EffectName = (typeof EFFECTS)[number];
 
 export const effectLabels: Record<EffectName, string> = {
@@ -14,7 +14,7 @@ export const effectLabels: Record<EffectName, string> = {
   pixelate: 'Pixelated',
   cartoon: 'Cartoon',
   kaleidoscope: 'Kaleidoscope',
-  thermal: 'Thermal',
+  neon: 'Neon sign',
   vhs: 'VHS tape',
   crt: 'CRT monitor',
   psychedelic: 'Psychedelic',
@@ -121,8 +121,8 @@ const KaleidoscopeShader = {
   `,
 };
 
-/** Thermal camera: brightness mapped to a heat palette with sensor noise and a soft glow. */
-const ThermalShader = {
+/** Neon sign: edges traced in glowing colour on a dark background, with bloom and flicker. */
+const NeonShader = {
   uniforms: {
     tDiffuse: { value: null as THREE.Texture | null },
     resolution: { value: new THREE.Vector2(1, 1) },
@@ -135,50 +135,62 @@ const ThermalShader = {
     uniform float time;
     varying vec2 vUv;
 
-    float hash(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
     float luma(vec3 c) { return dot(c, vec3(0.299, 0.587, 0.114)); }
 
-    vec3 heat(float t) {
-      // black -> deep blue -> purple -> red -> orange -> yellow -> white
-      vec3 c0 = vec3(0.0, 0.0, 0.05);
-      vec3 c1 = vec3(0.1, 0.0, 0.45);
-      vec3 c2 = vec3(0.6, 0.05, 0.45);
-      vec3 c3 = vec3(0.95, 0.2, 0.1);
-      vec3 c4 = vec3(1.0, 0.65, 0.05);
-      vec3 c5 = vec3(1.0, 0.97, 0.6);
-      vec3 c6 = vec3(1.0);
-      float s = t * 6.0;
-      if (s < 1.0) return mix(c0, c1, s);
-      if (s < 2.0) return mix(c1, c2, s - 1.0);
-      if (s < 3.0) return mix(c2, c3, s - 2.0);
-      if (s < 4.0) return mix(c3, c4, s - 3.0);
-      if (s < 5.0) return mix(c4, c5, s - 4.0);
-      return mix(c5, c6, s - 5.0);
+    // Edge strength at a point, from a Sobel on brightness.
+    float edgeAt(vec2 uv, vec2 px) {
+      float tl = luma(texture2D(tDiffuse, uv + px * vec2(-1.0,  1.0)).rgb);
+      float t  = luma(texture2D(tDiffuse, uv + px * vec2( 0.0,  1.0)).rgb);
+      float tr = luma(texture2D(tDiffuse, uv + px * vec2( 1.0,  1.0)).rgb);
+      float l  = luma(texture2D(tDiffuse, uv + px * vec2(-1.0,  0.0)).rgb);
+      float r  = luma(texture2D(tDiffuse, uv + px * vec2( 1.0,  0.0)).rgb);
+      float bl = luma(texture2D(tDiffuse, uv + px * vec2(-1.0, -1.0)).rgb);
+      float b  = luma(texture2D(tDiffuse, uv + px * vec2( 0.0, -1.0)).rgb);
+      float br = luma(texture2D(tDiffuse, uv + px * vec2( 1.0, -1.0)).rgb);
+      float gx = -tl - 2.0 * l - bl + tr + 2.0 * r + br;
+      float gy = -tl - 2.0 * t - tr + bl + 2.0 * b + br;
+      return sqrt(gx * gx + gy * gy);
+    }
+
+    vec3 tubeColour(vec3 c) {
+      // Push the source colour to a saturated neon: reds go magenta-pink, pale cheese goes cyan, greens go lime.
+      float lum = luma(c);
+      vec3 pink = vec3(1.0, 0.2, 0.75);
+      vec3 cyan = vec3(0.2, 0.95, 1.0);
+      vec3 lime = vec3(0.6, 1.0, 0.25);
+      float redness = clamp((c.r - c.g) * 2.0, 0.0, 1.0);
+      float greenness = clamp((c.g - c.r) * 2.0, 0.0, 1.0);
+      vec3 col = mix(cyan, pink, redness);
+      col = mix(col, lime, greenness);
+      return mix(col, vec3(1.0), smoothstep(0.85, 1.0, lum) * 0.3);
     }
 
     void main() {
-      vec2 px = 1.0 / resolution;
-      // Thermal sensors are soft: average a small neighbourhood.
-      float l = 0.0;
-      for (int y = -1; y <= 1; y++) {
-        for (int x = -1; x <= 1; x++) {
-          l += luma(texture2D(tDiffuse, vUv + vec2(float(x), float(y)) * px * 2.0).rgb);
-        }
+      vec2 px = 1.5 / resolution;
+      vec3 src = texture2D(tDiffuse, vUv).rgb;
+      float edge = smoothstep(0.18, 0.6, edgeAt(vUv, px));
+
+      // Wider, dimmer samples give the glow around each tube.
+      float glow = 0.0;
+      for (int i = 1; i <= 4; i++) {
+        float d = float(i) * 2.5;
+        glow += edgeAt(vUv + vec2( d, 0.0) / resolution, px);
+        glow += edgeAt(vUv + vec2(-d, 0.0) / resolution, px);
+        glow += edgeAt(vUv + vec2(0.0,  d) / resolution, px);
+        glow += edgeAt(vUv + vec2(0.0, -d) / resolution, px);
       }
-      l /= 9.0;
-      // Warm things (red toppings) read hotter than pale cheese.
-      vec3 c = texture2D(tDiffuse, vUv).rgb;
-      float warmth = clamp((c.r - c.b) * 0.5, 0.0, 0.3);
-      float t = clamp(pow(l, 1.7) * 0.68 + warmth * 0.6 + sin(time * 0.6) * 0.03, 0.0, 1.0);
-      // Sensor noise and a faint line flicker.
-      float grain = (hash(floor(vUv * resolution * 0.5) + fract(time * 7.0)) - 0.5) * 0.06;
-      t = clamp(t + grain, 0.0, 1.0);
-      vec3 col = heat(t);
-      // Vignette and a subtle glow around the hottest areas.
-      vec2 d = vUv - 0.5;
-      col *= 1.0 - dot(d, d) * 0.6;
-      col += heat(min(t + 0.15, 1.0)) * smoothstep(0.75, 1.0, t) * 0.25;
-      gl_FragColor = vec4(col, 1.0);
+      glow = smoothstep(0.3, 2.5, glow);
+
+      vec3 tube = tubeColour(src);
+      // Mains hum: a barely-there flicker, plus the odd stutter.
+      float flicker = 0.93 + 0.07 * sin(time * 60.0) * sin(time * 3.1) + 0.05 * step(0.985, fract(sin(floor(time * 12.0)) * 43758.5));
+
+      vec3 col = vec3(0.02, 0.01, 0.05);
+      col += tube * glow * 0.45;
+      col += mix(tube, vec3(1.0), 0.35) * edge * 1.4;
+      // The unlit pizza shows faintly, like a dark wall behind the sign.
+      col += src * 0.06;
+      gl_FragColor = vec4(col * flicker, 1.0);
     }
   `,
 };
@@ -618,13 +630,13 @@ export function createPipeline(ctx: EffectContext): EffectPipeline {
         timedPasses.push(k);
       }
       break;
-    case 'thermal':
+    case 'neon':
       add(new RenderPass(scene, camera));
       add(new OutputPass());
       {
-        const t = add(new ShaderPass(ThermalShader));
-        resolutionPasses.push(t);
-        timedPasses.push(t);
+        const neon = add(new ShaderPass(NeonShader));
+        resolutionPasses.push(neon);
+        timedPasses.push(neon);
       }
       break;
     case 'vhs':
