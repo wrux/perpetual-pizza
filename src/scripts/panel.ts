@@ -243,6 +243,29 @@ export function initPanel(pizza: PizzaController) {
     notify('Back to the house pizza');
   });
 
+  /* Tabs */
+  const tabButtons = Array.from(panel.querySelectorAll<HTMLButtonElement>('[role="tab"][data-tab]'));
+  const panes = Array.from(panel.querySelectorAll<HTMLElement>('[data-pane]'));
+  const selectTab = (id: string, focus = false) => {
+    for (const b of tabButtons) {
+      const on = b.dataset.tab === id;
+      b.setAttribute('aria-selected', String(on));
+      b.tabIndex = on ? 0 : -1;
+      if (on && focus) b.focus();
+    }
+    for (const pane of panes) pane.hidden = pane.dataset.pane !== id;
+  };
+  for (const b of tabButtons) {
+    b.addEventListener('click', () => selectTab(b.dataset.tab!));
+    b.addEventListener('keydown', (event) => {
+      const i = tabButtons.indexOf(b);
+      const step = event.key === 'ArrowRight' ? 1 : event.key === 'ArrowLeft' ? -1 : 0;
+      if (!step) return;
+      event.preventDefault();
+      selectTab(tabButtons[(i + step + tabButtons.length) % tabButtons.length].dataset.tab!, true);
+    });
+  }
+
   /* Open / close */
   const isOpen = () => panel.classList.contains('open');
   const setOpen = (open: boolean) => {

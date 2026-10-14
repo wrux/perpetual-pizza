@@ -1,141 +1,180 @@
 ---
 import { EFFECTS, effectLabels } from '../scripts/effects';
+
+const tabs = [
+  { id: 'look', label: 'Look' },
+  { id: 'motion', label: 'Motion' },
+  { id: 'camera', label: 'Camera' },
+  { id: 'toppings', label: 'Toppings' },
+];
 ---
 
 <div class="chrome topbar">
-<header class="brand">
-  <a class="brand__link" href="https://wrux.com" rel="author" title="Made by wrux.com">
-    <svg class="brand__logo" viewBox="0 0 64 64" aria-hidden="true" xmlns="http://www.w3.org/2000/svg">
-      <circle cx="32" cy="32" r="30" fill="#d9944a" />
-      <circle cx="32" cy="32" r="24" fill="#f3cf6b" />
-      <circle cx="21" cy="22" r="4.2" fill="#c4342b" />
-      <circle cx="44" cy="20" r="4.2" fill="#c4342b" />
-      <circle cx="47" cy="40" r="4.2" fill="#c4342b" />
-      <circle cx="19" cy="42" r="4.2" fill="#c4342b" />
-      <circle cx="33" cy="50" r="4.2" fill="#c4342b" />
-      <path d="M27 36c3-1 4-5 7-5" stroke="#4f7d2e" stroke-width="2.4" stroke-linecap="round" fill="none" />
-      <circle cx="32" cy="32" r="7.5" fill="#d9944a" />
-      <circle cx="32" cy="32" r="5.5" fill="#f3cf6b" />
-      <circle cx="30" cy="30.5" r="1.2" fill="#c4342b" />
-      <circle cx="34.5" cy="33" r="1.2" fill="#c4342b" />
-      <circle cx="32" cy="32" r="1.6" fill="#d9944a" />
-    </svg>
-    <span class="brand__text">
-      <span class="brand__name">Perpetual Pizza</span>
-      <span class="brand__by">by wrux.com</span>
-    </span>
-  </a>
-</header>
+  <header class="brand">
+    <a class="brand__link" href="https://wrux.com" rel="author" title="Made by wrux.com">
+      <svg class="brand__logo" viewBox="0 0 64 64" aria-hidden="true" xmlns="http://www.w3.org/2000/svg">
+        <circle cx="32" cy="32" r="30" fill="#d9944a" />
+        <circle cx="32" cy="32" r="24" fill="#f3cf6b" />
+        <circle cx="21" cy="22" r="4.2" fill="#c4342b" />
+        <circle cx="44" cy="20" r="4.2" fill="#c4342b" />
+        <circle cx="47" cy="40" r="4.2" fill="#c4342b" />
+        <circle cx="19" cy="42" r="4.2" fill="#c4342b" />
+        <circle cx="33" cy="50" r="4.2" fill="#c4342b" />
+        <path d="M27 36c3-1 4-5 7-5" stroke="#4f7d2e" stroke-width="2.4" stroke-linecap="round" fill="none" />
+        <circle cx="32" cy="32" r="7.5" fill="#d9944a" />
+        <circle cx="32" cy="32" r="5.5" fill="#f3cf6b" />
+        <circle cx="30" cy="30.5" r="1.2" fill="#c4342b" />
+        <circle cx="34.5" cy="33" r="1.2" fill="#c4342b" />
+        <circle cx="32" cy="32" r="1.6" fill="#d9944a" />
+      </svg>
+      <span class="brand__text">
+        <span class="brand__name">Perpetual Pizza</span>
+        <span class="brand__by">by wrux.com</span>
+      </span>
+    </a>
+  </header>
 
-<nav class="toolbar" aria-label="Page controls">
-  <button type="button" class="toolbar__button" data-action="share" title="Copy a link to this pizza" aria-label="Copy a link to this pizza">
-    <svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-      <path d="M10 13a5 5 0 0 0 7.5.5l3-3a5 5 0 0 0-7-7l-1.7 1.7" />
-      <path d="M14 11a5 5 0 0 0-7.5-.5l-3 3a5 5 0 0 0 7 7l1.7-1.7" />
-    </svg>
-  </button>
-  <button type="button" id="toggle-options" class="toolbar__button" title="Options (O)" aria-label="Options" aria-expanded="false" aria-controls="options">
-    <svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
-      <path d="M4 7h10M18 7h2M4 12h2M10 12h10M4 17h8M16 17h4" />
-      <circle cx="16" cy="7" r="2" /><circle cx="8" cy="12" r="2" /><circle cx="14" cy="17" r="2" />
-    </svg>
-  </button>
-  <button type="button" id="toggle-fullscreen" class="toolbar__button toggle-fullscreen" title="Fullscreen (F)" aria-label="Toggle fullscreen">
-    <svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="fullscreen-out">
-      <path d="M8 3H3v5M16 3h5v5M8 21H3v-5M16 21h5v-5" />
-    </svg>
-    <svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="fullscreen-in">
-      <path d="M3 8h5V3M21 8h-5V3M3 16h5v5M21 16h-5v5" />
-    </svg>
-  </button>
-</nav>
+  <nav class="toolbar" aria-label="Page controls">
+    <button type="button" class="toolbar__button" data-action="share" title="Copy a link to this pizza" aria-label="Copy a link to this pizza">
+      <svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M10 13a5 5 0 0 0 7.5.5l3-3a5 5 0 0 0-7-7l-1.7 1.7" />
+        <path d="M14 11a5 5 0 0 0-7.5-.5l-3 3a5 5 0 0 0 7 7l1.7-1.7" />
+      </svg>
+    </button>
+    <button type="button" id="toggle-options" class="toolbar__button" title="Customise (O)" aria-label="Customise the pizza" aria-expanded="false" aria-controls="options">
+      <svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+        <path d="M4 7h10M18 7h2M4 12h2M10 12h10M4 17h8M16 17h4" />
+        <circle cx="16" cy="7" r="2" /><circle cx="8" cy="12" r="2" /><circle cx="14" cy="17" r="2" />
+      </svg>
+    </button>
+    <button type="button" id="toggle-fullscreen" class="toolbar__button toggle-fullscreen" title="Fullscreen (F)" aria-label="Toggle fullscreen">
+      <svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="fullscreen-out">
+        <path d="M8 3H3v5M16 3h5v5M8 21H3v-5M16 21h5v-5" />
+      </svg>
+      <svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="fullscreen-in">
+        <path d="M3 8h5V3M21 8h-5V3M3 16h5v5M21 16h-5v5" />
+      </svg>
+    </button>
+  </nav>
 </div>
 
-<aside id="options" class="options" aria-label="Pizza options">
-  <div class="options__header">
-    <h2>Options</h2>
-    <div class="options__header-actions">
-      <button type="button" class="options__reset" data-action="reset">Reset</button>
-      <button type="button" class="toolbar__button options__close" data-action="close" aria-label="Close options">
+<aside id="options" class="dock" aria-label="Customise the pizza">
+  <div class="dock__bar">
+    <div class="dock__tabs" role="tablist" aria-label="Sections">
+      {
+        tabs.map((t, i) => (
+          <button
+            type="button"
+            role="tab"
+            id={`tab-${t.id}`}
+            class="dock__tab"
+            data-tab={t.id}
+            aria-selected={i === 0 ? 'true' : 'false'}
+            aria-controls={`pane-${t.id}`}
+            tabindex={i === 0 ? 0 : -1}
+          >
+            {t.label}
+          </button>
+        ))
+      }
+    </div>
+    <div class="dock__actions">
+      <button type="button" class="dock__action dock__action--reset" data-action="reset" aria-label="Reset to defaults" title="Reset to defaults">
+        <svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 3-6.7M3 4v5h5" /></svg>
+        <span>Reset</span>
+      </button>
+      <button type="button" class="dock__action dock__action--icon" data-action="close" aria-label="Close">
         <svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18" /></svg>
       </button>
     </div>
   </div>
 
-  <form class="options__form" autocomplete="off">
-    <fieldset>
-      <legend>Look</legend>
-      <div class="chips" role="radiogroup" aria-label="Shader">
+  <form class="dock__panes" autocomplete="off">
+    <section id="pane-look" class="dock__pane" role="tabpanel" aria-labelledby="tab-look" data-pane="look">
+      <div class="looks" role="radiogroup" aria-label="Shader">
         {
           EFFECTS.map((e) => (
-            <label class="chip">
+            <label class="look">
               <input type="radio" name="effect" value={e} data-key="effect" />
-              <span>{effectLabels[e]}</span>
+              <span class={`look__swatch look__swatch--${e}`} aria-hidden="true" />
+              <span class="look__name">{effectLabels[e]}</span>
             </label>
           ))
         }
       </div>
-      <label data-show-for="pixelate gameboy">
-        <span>Pixel size <output data-output="pixelSize"></output></span>
-        <input type="range" data-key="pixelSize" min="2" max="24" step="1" />
-      </label>
-      <label class="options__row">
-        <span>Shadows</span>
-        <input type="checkbox" class="switch" data-key="shadows" />
-      </label>
-    </fieldset>
-
-    <fieldset>
-      <legend>Motion</legend>
-      <label>
-        <span>Speed <output data-output="speed"></output></span>
-        <input type="range" data-key="speed" min="0.25" max="4" step="0.05" />
-      </label>
-      <label>
-        <span>Spin <output data-output="spinTurns"></output></span>
-        <input type="range" data-key="spinTurns" min="-1" max="1" step="0.05" />
-      </label>
-      <div class="chips" role="radiogroup" aria-label="Direction">
-        <label class="chip"><input type="radio" name="direction" value="1" data-key="direction" /><span>Zoom in</span></label>
-        <label class="chip"><input type="radio" name="direction" value="-1" data-key="direction" /><span>Zoom out</span></label>
+      <div class="row">
+        <label class="field" data-show-for="pixelate gameboy">
+          <span class="field__label">Pixel size <output data-output="pixelSize"></output></span>
+          <input type="range" data-key="pixelSize" min="2" max="24" step="1" />
+        </label>
+        <label class="field field--inline">
+          <span class="field__label">Shadows</span>
+          <input type="checkbox" class="switch" data-key="shadows" />
+        </label>
       </div>
-    </fieldset>
+    </section>
 
-    <fieldset>
-      <legend>Camera</legend>
-      <label>
-        <span>Angle <output data-output="elevation"></output></span>
-        <input type="range" data-key="elevation" min="15" max="90" step="1" />
-      </label>
-      <label>
-        <span>Lens <output data-output="fov"></output></span>
-        <input type="range" data-key="fov" min="25" max="80" step="1" />
-      </label>
-    </fieldset>
+    <section id="pane-motion" class="dock__pane" role="tabpanel" aria-labelledby="tab-motion" data-pane="motion" hidden>
+      <div class="grid">
+        <label class="field">
+          <span class="field__label">Speed <output data-output="speed"></output></span>
+          <input type="range" data-key="speed" min="0.25" max="4" step="0.05" />
+        </label>
+        <label class="field">
+          <span class="field__label">Spin <output data-output="spinTurns"></output></span>
+          <input type="range" data-key="spinTurns" min="-1" max="1" step="0.05" />
+        </label>
+        <div class="field">
+          <span class="field__label">Direction</span>
+          <div class="segment" role="radiogroup" aria-label="Direction">
+            <label><input type="radio" name="direction" value="1" data-key="direction" /><span>Zoom in</span></label>
+            <label><input type="radio" name="direction" value="-1" data-key="direction" /><span>Zoom out</span></label>
+          </div>
+        </div>
+      </div>
+    </section>
 
-    <fieldset>
-      <legend>Toppings</legend>
-      <label>
-        <span>Pepperoni <output data-output="toppings.pepperoni"></output></span>
-        <input type="range" data-key="toppings.pepperoni" min="0" max="40" step="1" />
-      </label>
-      <label>
-        <span>Mushroom <output data-output="toppings.mushroom"></output></span>
-        <input type="range" data-key="toppings.mushroom" min="0" max="40" step="1" />
-      </label>
-      <label>
-        <span>Basil <output data-output="toppings.basil"></output></span>
-        <input type="range" data-key="toppings.basil" min="0" max="40" step="1" />
-      </label>
-      <label>
-        <span>Olives <output data-output="toppings.olive"></output></span>
-        <input type="range" data-key="toppings.olive" min="0" max="40" step="1" />
-      </label>
-      <button type="button" class="button button--small" data-action="shuffle">
+    <section id="pane-camera" class="dock__pane" role="tabpanel" aria-labelledby="tab-camera" data-pane="camera" hidden>
+      <div class="grid">
+        <label class="field">
+          <span class="field__label">Angle <output data-output="elevation"></output></span>
+          <input type="range" data-key="elevation" min="15" max="90" step="1" />
+        </label>
+        <label class="field">
+          <span class="field__label">Lens <output data-output="fov"></output></span>
+          <input type="range" data-key="fov" min="25" max="80" step="1" />
+        </label>
+      </div>
+    </section>
+
+    <section id="pane-toppings" class="dock__pane" role="tabpanel" aria-labelledby="tab-toppings" data-pane="toppings" hidden>
+      <div class="grid grid--toppings">
+        <label class="field topping">
+          <svg class="topping__icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9" fill="#c4342b" /><circle cx="9" cy="10" r="1.3" fill="#8c1d18" /><circle cx="14" cy="14" r="1.3" fill="#8c1d18" /><circle cx="13.5" cy="8.5" r="1" fill="#e8907f" /></svg>
+          <span class="field__label">Pepperoni <output data-output="toppings.pepperoni"></output></span>
+          <input type="range" data-key="toppings.pepperoni" min="0" max="40" step="1" />
+        </label>
+        <label class="field topping">
+          <svg class="topping__icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 11a8 7 0 0 1 16 0H4z" fill="#d9bc90" /><path d="M4 11h16" stroke="#6b4728" stroke-width="1.6" /><path d="M9 12h6l-1 8h-4z" fill="#f0e4cb" /></svg>
+          <span class="field__label">Mushroom <output data-output="toppings.mushroom"></output></span>
+          <input type="range" data-key="toppings.mushroom" min="0" max="40" step="1" />
+        </label>
+        <label class="field topping">
+          <svg class="topping__icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3c6 2 8 8 4 14-3 4-9 4-11 0C2 11 6 4 12 3z" fill="#3f7d2e" /><path d="M12 4v15" stroke="#a9d47e" stroke-width="1.2" /></svg>
+          <span class="field__label">Basil <output data-output="toppings.basil"></output></span>
+          <input type="range" data-key="toppings.basil" min="0" max="40" step="1" />
+        </label>
+        <label class="field topping">
+          <svg class="topping__icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9" fill="#2a2222" /><circle cx="12" cy="12" r="3.5" fill="#f3cf6b" /><circle cx="9" cy="8" r="1.5" fill="#5a3f3f" /></svg>
+          <span class="field__label">Olives <output data-output="toppings.olive"></output></span>
+          <input type="range" data-key="toppings.olive" min="0" max="40" step="1" />
+        </label>
+      </div>
+      <button type="button" class="dock__button" data-action="shuffle">
         <svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 3h5v5M4 20L21 3M21 16v5h-5M15 15l6 6M4 4l5 5" /></svg>
         Shuffle toppings
       </button>
-    </fieldset>
+    </section>
   </form>
 </aside>
 
@@ -156,11 +195,11 @@ import { EFFECTS, effectLabels } from '../scripts/effects';
   }
 
   body.is-fullscreen .chrome,
-  body.is-fullscreen .options {
+  body.is-fullscreen .dock {
     display: none;
   }
 
-  :where(.chrome, .options) :focus-visible {
+  :where(.chrome, .dock) :focus-visible {
     outline: 2px solid #fff;
     outline-offset: 2px;
   }
@@ -181,7 +220,6 @@ import { EFFECTS, effectLabels } from '../scripts/effects';
     pointer-events: auto;
   }
 
-  /* ---- Brand --------------------------------------------------------- */
   .brand {
     min-width: 0;
   }
@@ -243,7 +281,6 @@ import { EFFECTS, effectLabels } from '../scripts/effects';
     color: #fff;
   }
 
-  /* ---- Toolbar ------------------------------------------------------- */
   .toolbar {
     flex: none;
     display: flex;
@@ -305,63 +342,96 @@ import { EFFECTS, effectLabels } from '../scripts/effects';
     }
   }
 
-  /* ---- Panel --------------------------------------------------------- */
-  .options {
-    --pad: 1.5rem;
+  /* ---- Dock ---------------------------------------------------------- */
+  .dock {
+    --pad: 1rem;
 
     position: fixed;
     z-index: 6;
-    top: 0;
-    right: 0;
-    bottom: 0;
-    width: min(22rem, 100vw);
-    padding: 1.35rem var(--pad) 2rem;
-    overflow-y: auto;
-    overscroll-behavior: contain;
-    border-left: 1px solid rgba(255, 255, 255, 0.1);
-    background: rgba(18, 8, 3, 0.68);
+    left: 50%;
+    bottom: calc(1.25rem + env(safe-area-inset-bottom));
+    width: min(44rem, calc(100vw - 2.5rem));
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 1.25rem;
+    background: rgba(18, 8, 3, 0.7);
     backdrop-filter: blur(24px) saturate(140%);
     -webkit-backdrop-filter: blur(24px) saturate(140%);
-    box-shadow: -8px 0 32px rgba(0, 0, 0, 0.3);
+    box-shadow: 0 16px 48px rgba(0, 0, 0, 0.35);
     color: #fff;
-    font-size: 0.875rem;
-    transform: translateX(100%);
+    font-size: 0.85rem;
+    transform: translate(-50%, 1.25rem) scale(0.98);
+    opacity: 0;
     visibility: hidden;
     transition:
-      transform 380ms cubic-bezier(0.2, 0.8, 0.2, 1),
-      visibility 0s linear 380ms;
+      transform 320ms cubic-bezier(0.2, 0.8, 0.2, 1),
+      opacity 220ms ease,
+      visibility 0s linear 320ms;
   }
 
-  .options.open {
-    transform: translateX(0);
+  .dock.open {
+    transform: translate(-50%, 0) scale(1);
+    opacity: 1;
     visibility: visible;
     transition-delay: 0s;
   }
 
-  .options__header {
+  .dock__bar {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    margin-bottom: 1.5rem;
-    /* leave room for the toolbar pill above */
-    padding-right: 9rem;
+    gap: 0.75rem;
+    padding: 0.6rem 0.6rem 0;
   }
 
-  .options__header h2 {
-    margin: 0;
-    font-size: 1.05rem;
-    font-weight: 800;
-    letter-spacing: 0.01em;
+  .dock__tabs {
+    display: flex;
+    gap: 0.15rem;
+    padding: 0.2rem;
+    border-radius: 5rem;
+    background: rgba(255, 255, 255, 0.07);
+    overflow-x: auto;
+    scrollbar-width: none;
   }
 
-  .options__header-actions {
+  .dock__tabs::-webkit-scrollbar {
+    display: none;
+  }
+
+  .dock__tab {
+    flex: none;
+    padding: 0.4em 0.95em;
+    border: 0;
+    border-radius: 5rem;
+    background: transparent;
+    color: rgba(255, 255, 255, 0.65);
+    font: inherit;
+    font-weight: 600;
+    cursor: pointer;
+    transition:
+      background 160ms ease,
+      color 160ms ease;
+  }
+
+  .dock__tab:hover {
+    color: #fff;
+  }
+
+  .dock__tab[aria-selected='true'] {
+    background: rgba(255, 255, 255, 0.14);
+    color: #fff;
+  }
+
+  .dock__actions {
     display: flex;
     align-items: center;
-    gap: 0.5rem;
+    gap: 0.25rem;
   }
 
-  .options__reset {
-    padding: 0.3em 0.7em;
+  .dock__action {
+    display: grid;
+    place-items: center;
+    height: 2rem;
+    padding: 0 0.75em;
     border: 0;
     border-radius: 5rem;
     background: transparent;
@@ -375,94 +445,278 @@ import { EFFECTS, effectLabels } from '../scripts/effects';
       background 150ms ease;
   }
 
-  .options__reset:hover {
+  .dock__action:hover {
     color: #fff;
     background: rgba(255, 255, 255, 0.1);
   }
 
-  .options__close {
+  .dock__action--reset {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4em;
+  }
+
+  .dock__action--reset svg {
+    width: 0.95rem;
+    height: 0.95rem;
+  }
+
+  .dock__action--icon {
+    width: 2rem;
+    padding: 0;
+  }
+
+  .dock__action--icon svg {
+    width: 1rem;
+    height: 1rem;
+  }
+
+  .dock__panes {
+    padding: 0.9rem var(--pad) var(--pad);
+  }
+
+  .dock__pane {
+    display: flex;
+    flex-direction: column;
+    gap: 0.9rem;
+    animation: pane-in 220ms ease;
+  }
+
+  .dock__pane[hidden] {
     display: none;
   }
 
-  .options__form {
-    display: flex;
-    flex-direction: column;
+  @keyframes pane-in {
+    from {
+      opacity: 0;
+      transform: translateY(4px);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
   }
 
-  fieldset {
+  /* ---- Looks: visual tiles ------------------------------------------- */
+  .looks {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(4.6rem, 1fr));
+    gap: 0.5rem;
+  }
+
+  .look {
+    position: relative;
     display: flex;
     flex-direction: column;
-    gap: 0.85rem;
-    margin: 0;
-    padding: 1.25rem 0;
-    border: 0;
-    border-top: 1px solid rgba(255, 255, 255, 0.1);
-    /* Stagger in when the panel opens. */
+    align-items: center;
+    gap: 0.35rem;
+    padding: 0.4rem 0.2rem 0.45rem;
+    border-radius: 0.8rem;
+    cursor: pointer;
+    transition: background 150ms ease;
+  }
+
+  .look:hover {
+    background: rgba(255, 255, 255, 0.07);
+  }
+
+  .look input {
+    position: absolute;
+    inset: 0;
     opacity: 0;
-    transform: translateY(6px);
+    margin: 0;
+    cursor: pointer;
+  }
+
+  .look input:focus-visible ~ .look__swatch {
+    outline: 2px solid #fff;
+    outline-offset: 2px;
+  }
+
+  .look__swatch {
+    --pizza:
+      radial-gradient(circle at 36% 34%, #c4342b 0 9%, transparent 10%),
+      radial-gradient(circle at 66% 40%, #c4342b 0 8%, transparent 9%),
+      radial-gradient(circle at 50% 68%, #c4342b 0 9%, transparent 10%),
+      radial-gradient(circle at 50% 50%, #f3cf6b 0 36%, #d9944a 37% 46%, #f0a040 47%);
+
+    position: relative;
+    width: 3.1rem;
+    height: 3.1rem;
+    border-radius: 0.7rem;
+    background: var(--pizza);
+    box-shadow:
+      inset 0 0 0 1px rgba(255, 255, 255, 0.12),
+      0 2px 6px rgba(0, 0, 0, 0.25);
+    overflow: hidden;
     transition:
-      opacity 320ms ease,
-      transform 320ms ease;
+      transform 160ms ease,
+      box-shadow 160ms ease;
   }
 
-  fieldset:first-child {
-    padding-top: 0;
-    border-top: 0;
+  .look__swatch::after {
+    content: '';
+    position: absolute;
+    inset: 0;
   }
 
-  .options.open fieldset {
-    opacity: 1;
-    transform: none;
+  .look input:checked ~ .look__swatch {
+    box-shadow:
+      inset 0 0 0 2px rgb(var(--primary)),
+      0 0 0 2px rgba(var(--primary), 0.45),
+      0 2px 6px rgba(0, 0, 0, 0.25);
+    transform: translateY(-1px);
   }
 
-  .options.open fieldset:nth-child(1) { transition-delay: 60ms; }
-  .options.open fieldset:nth-child(2) { transition-delay: 120ms; }
-  .options.open fieldset:nth-child(3) { transition-delay: 180ms; }
-  .options.open fieldset:nth-child(4) { transition-delay: 240ms; }
-
-  legend {
-    float: left; /* lets the fieldset's border-top sit above the legend */
-    width: 100%;
-    padding: 0;
-    margin-bottom: 0.9rem;
-    font-size: 0.68rem;
-    font-weight: 700;
-    letter-spacing: 0.12em;
-    text-transform: uppercase;
-    color: rgba(255, 255, 255, 0.5);
+  .look__name {
+    font-size: 0.72rem;
+    font-weight: 600;
+    text-align: center;
+    color: rgba(255, 255, 255, 0.75);
+    white-space: nowrap;
   }
 
-  label {
+  .look input:checked ~ .look__name {
+    color: #fff;
+  }
+
+  /* Each tile previews its look with pure CSS. */
+  .look__swatch--pixelate::after {
+    background:
+      linear-gradient(rgba(0, 0, 0, 0.22) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(0, 0, 0, 0.22) 1px, transparent 1px);
+    background-size: 6px 6px;
+  }
+
+  .look__swatch--cartoon {
+    --pizza:
+      radial-gradient(circle at 36% 34%, #1a0a08 0 10%, #d33a2e 11% 19%, transparent 20%),
+      radial-gradient(circle at 66% 40%, #1a0a08 0 9%, #d33a2e 10% 17%, transparent 18%),
+      radial-gradient(circle at 50% 68%, #1a0a08 0 10%, #d33a2e 11% 19%, transparent 20%),
+      radial-gradient(circle at 50% 50%, #ffd966 0 35%, #1a0a08 36% 38%, #e0a050 39% 46%, #1a0a08 47% 49%, #ffb050 50%);
+  }
+
+  .look__swatch--halftone::after {
+    background: radial-gradient(circle, rgba(0, 0, 0, 0.55) 0 1.2px, transparent 1.6px);
+    background-size: 5px 5px;
+    mix-blend-mode: multiply;
+  }
+
+  .look__swatch--gameboy {
+    --pizza:
+      radial-gradient(circle at 36% 34%, #0f380f 0 9%, transparent 10%),
+      radial-gradient(circle at 66% 40%, #0f380f 0 8%, transparent 9%),
+      radial-gradient(circle at 50% 68%, #0f380f 0 9%, transparent 10%),
+      radial-gradient(circle at 50% 50%, #9bbc0f 0 36%, #306230 37% 46%, #8bac0f 47%);
+  }
+
+  .look__swatch--gameboy::after {
+    background:
+      linear-gradient(rgba(15, 56, 15, 0.35) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(15, 56, 15, 0.35) 1px, transparent 1px);
+    background-size: 5px 5px;
+  }
+
+  .look__swatch--vhs::after {
+    background:
+      linear-gradient(rgba(0, 0, 0, 0.3) 50%, transparent 50%),
+      linear-gradient(90deg, rgba(255, 0, 80, 0.35), transparent 30%, transparent 70%, rgba(0, 200, 255, 0.35));
+    background-size:
+      100% 3px,
+      100% 100%;
+    transform: skewX(-6deg) scaleX(1.1);
+  }
+
+  .look__swatch--crt {
+    border-radius: 0.9rem;
+  }
+
+  .look__swatch--crt::after {
+    background:
+      linear-gradient(rgba(0, 0, 0, 0.35) 50%, transparent 50%),
+      radial-gradient(ellipse at center, transparent 55%, rgba(0, 0, 0, 0.75) 100%);
+    background-size:
+      100% 3px,
+      100% 100%;
+  }
+
+  .look__swatch--psychedelic {
+    --pizza:
+      radial-gradient(circle at 36% 34%, #ff2d95 0 9%, transparent 10%),
+      radial-gradient(circle at 66% 40%, #00e5ff 0 8%, transparent 9%),
+      radial-gradient(circle at 50% 68%, #ffe600 0 9%, transparent 10%),
+      conic-gradient(from 40deg, #ff0066, #ffcc00, #33ff99, #0099ff, #cc33ff, #ff0066);
+  }
+
+  /* ---- Fields -------------------------------------------------------- */
+  .row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    gap: 1rem 1.5rem;
+  }
+
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr));
+    gap: 0.9rem 1.5rem;
+  }
+
+  .grid--toppings {
+    grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr));
+  }
+
+  .field {
     display: flex;
     flex-direction: column;
-    gap: 0.45rem;
+    gap: 0.4rem;
+    min-width: 0;
+    flex: 1 1 12rem;
   }
 
-  label > span {
+  .field--inline {
+    flex: 0 0 auto;
+    flex-direction: row;
+    align-items: center;
+    gap: 0.7rem;
+    padding-bottom: 0.3rem;
+  }
+
+  .field[hidden] {
+    display: none;
+  }
+
+  .field__label {
     display: flex;
     align-items: center;
     justify-content: space-between;
     font-weight: 500;
   }
 
-  label[hidden] {
-    display: none;
-  }
-
   output {
     padding: 0.1em 0.5em;
     border-radius: 5rem;
     background: rgba(255, 255, 255, 0.1);
-    font-size: 0.75rem;
+    font-size: 0.72rem;
     font-weight: 600;
     font-variant-numeric: tabular-nums;
     color: rgba(255, 255, 255, 0.85);
   }
 
-  .options__row {
-    flex-direction: row;
+  .topping {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    grid-template-rows: auto auto;
+    column-gap: 0.6rem;
+    row-gap: 0.3rem;
     align-items: center;
-    justify-content: space-between;
+  }
+
+  .topping__icon {
+    grid-row: 1 / 3;
+    width: 1.6rem;
+    height: 1.6rem;
+    filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.35));
   }
 
   /* Range sliders: one look in every browser, with the filled part of the track. */
@@ -472,7 +726,7 @@ import { EFFECTS, effectLabels } from '../scripts/effects';
     appearance: none;
     -webkit-appearance: none;
     width: 100%;
-    height: 1.5rem;
+    height: 1.4rem;
     margin: 0;
     background: transparent;
     cursor: pointer;
@@ -499,9 +753,9 @@ import { EFFECTS, effectLabels } from '../scripts/effects';
   input[type='range']::-webkit-slider-thumb {
     appearance: none;
     -webkit-appearance: none;
-    width: 1.1rem;
-    height: 1.1rem;
-    margin-top: calc(2px - 0.55rem);
+    width: 1.05rem;
+    height: 1.05rem;
+    margin-top: calc(2px - 0.525rem);
     border: 0;
     border-radius: 50%;
     background: #fff;
@@ -510,8 +764,8 @@ import { EFFECTS, effectLabels } from '../scripts/effects';
   }
 
   input[type='range']::-moz-range-thumb {
-    width: 1.1rem;
-    height: 1.1rem;
+    width: 1.05rem;
+    height: 1.05rem;
     border: 0;
     border-radius: 50%;
     background: #fff;
@@ -563,18 +817,20 @@ import { EFFECTS, effectLabels } from '../scripts/effects';
     transform: translateX(1.05rem);
   }
 
-  /* Chips */
-  .chips {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 0.4rem;
+  /* Segmented control */
+  .segment {
+    display: inline-flex;
+    padding: 0.2rem;
+    border-radius: 5rem;
+    background: rgba(255, 255, 255, 0.08);
+    align-self: flex-start;
   }
 
-  .chip {
+  .segment label {
     position: relative;
   }
 
-  .chip input {
+  .segment input {
     position: absolute;
     inset: 0;
     opacity: 0;
@@ -582,95 +838,121 @@ import { EFFECTS, effectLabels } from '../scripts/effects';
     cursor: pointer;
   }
 
-  .chip span {
+  .segment span {
     display: block;
-    padding: 0.4em 0.85em;
-    border: 1px solid rgba(255, 255, 255, 0.14);
+    padding: 0.35em 0.9em;
     border-radius: 5rem;
-    background: rgba(255, 255, 255, 0.06);
     font-size: 0.8rem;
     font-weight: 600;
-    line-height: 1.3;
+    color: rgba(255, 255, 255, 0.7);
     transition:
-      background 160ms ease,
-      border-color 160ms ease,
-      transform 120ms ease;
+      background 150ms ease,
+      color 150ms ease;
   }
 
-  .chip input:hover + span {
-    background: rgba(255, 255, 255, 0.12);
-    border-color: rgba(255, 255, 255, 0.3);
+  .segment input:hover + span {
+    color: #fff;
   }
 
-  .chip input:active + span {
-    transform: scale(0.96);
+  .segment input:checked + span {
+    background: rgb(var(--primary));
+    color: #fff;
   }
 
-  .chip input:focus-visible + span {
+  .segment input:focus-visible + span {
     outline: 2px solid #fff;
     outline-offset: 2px;
   }
 
-  .chip input:checked + span {
-    background: rgb(var(--primary));
-    border-color: rgb(var(--primary));
-  }
-
-  .button--small {
+  .dock__button {
+    display: inline-flex;
+    align-items: center;
     gap: 0.5em;
-    height: auto;
-    padding: 0.5em 1.1em;
-    border-width: 0;
-    font-size: 0.8rem;
     align-self: flex-start;
+    padding: 0.5em 1.1em;
+    border: 0;
+    border-radius: 5rem;
+    background: rgb(var(--primary));
+    color: #fff;
+    font: inherit;
+    font-size: 0.8rem;
+    font-weight: 700;
+    cursor: pointer;
+    transition:
+      filter 150ms ease,
+      transform 120ms ease;
   }
 
-  .button--small svg {
+  .dock__button svg {
     width: 1em;
     height: 1em;
   }
 
-  /* ---- Phones: a bottom sheet instead of a side drawer. --------------- */
+  .dock__button:hover {
+    filter: brightness(1.15);
+  }
+
+  .dock__button:active {
+    transform: scale(0.97);
+  }
+
+  /* ---- Phones -------------------------------------------------------- */
   @media (max-width: 640px) {
-    .options {
-      top: auto;
+    .dock {
       left: 0;
       right: 0;
       bottom: 0;
       width: 100%;
-      max-height: 72dvh;
-      padding: 0.6rem var(--pad) calc(1.5rem + env(safe-area-inset-bottom));
       border-left: 0;
-      border-top: 1px solid rgba(255, 255, 255, 0.12);
+      border-right: 0;
+      border-bottom: 0;
       border-radius: 1.25rem 1.25rem 0 0;
-      box-shadow: 0 -8px 32px rgba(0, 0, 0, 0.35);
+      padding-bottom: env(safe-area-inset-bottom);
       transform: translateY(100%);
+      opacity: 1;
     }
 
-    .options::before {
-      content: '';
-      display: block;
-      width: 2.25rem;
-      height: 4px;
-      margin: 0 auto 0.75rem;
-      border-radius: 2px;
-      background: rgba(255, 255, 255, 0.3);
-    }
-
-    .options.open {
+    .dock.open {
       transform: translateY(0);
     }
 
-    .options__header {
-      padding-right: 0;
-      margin-bottom: 1rem;
+    .dock__bar {
+      padding: 0.6rem 0.5rem 0;
     }
 
-    .options__close {
-      display: grid;
-      width: 2.1rem;
-      height: 2.1rem;
-      background: rgba(255, 255, 255, 0.1);
+    .dock__tabs {
+      flex: 1;
+      min-width: 0;
+    }
+
+    .dock__tab {
+      flex: 1;
+      padding: 0.4em 0.5em;
+      font-size: 0.8rem;
+      text-align: center;
+    }
+
+    .dock__action--reset {
+      width: 2rem;
+      padding: 0;
+    }
+
+    .dock__action--reset span {
+      display: none;
+    }
+
+    .dock__panes {
+      max-height: 55dvh;
+      overflow-y: auto;
+      overscroll-behavior: contain;
+    }
+
+    .looks {
+      grid-template-columns: repeat(4, 1fr);
+    }
+
+    .grid {
+      grid-template-columns: 1fr;
     }
 
     .toast {
@@ -699,11 +981,12 @@ import { EFFECTS, effectLabels } from '../scripts/effects';
   }
 
   @media (prefers-reduced-motion: reduce) {
-    .options,
-    fieldset,
-    .chip span,
+    .dock,
+    .dock__pane,
+    .look__swatch,
     .toolbar__button {
       transition: none;
+      animation: none;
     }
   }
 
@@ -727,6 +1010,11 @@ import { EFFECTS, effectLabels } from '../scripts/effects';
     transition:
       opacity 220ms ease,
       transform 220ms cubic-bezier(0.2, 0.8, 0.2, 1);
+  }
+
+  body.options-open .toast {
+    bottom: auto;
+    top: calc(5rem + env(safe-area-inset-top));
   }
 
   .toast.show {
