@@ -235,9 +235,6 @@ export function initPanel(pizza: PizzaController) {
   };
 
   document.querySelectorAll('[data-action="share"]').forEach((el) => el.addEventListener('click', share));
-  panel.querySelector('[data-action="shuffle"]')?.addEventListener('click', () => {
-    apply({ seed: Math.floor(Math.random() * 1_000_000) });
-  });
   panel.querySelector('[data-action="reset"]')?.addEventListener('click', () => {
     apply({ ...defaultConfig, toppings: { ...defaultConfig.toppings } });
     notify('Back to the house pizza');
