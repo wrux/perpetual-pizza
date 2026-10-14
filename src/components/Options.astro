@@ -22,12 +22,18 @@ const tabs = [
   </header>
 
   <nav class="toolbar" aria-label="Page controls">
-    <button type="button" class="toolbar__button" data-action="share" title="Copy a link to this pizza" aria-label="Copy a link to this pizza">
-      <svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-        <path d="M10 13a5 5 0 0 0 7.5.5l3-3a5 5 0 0 0-7-7l-1.7 1.7" />
-        <path d="M14 11a5 5 0 0 0-7.5-.5l-3 3a5 5 0 0 0 7 7l1.7-1.7" />
-      </svg>
-    </button>
+    <span class="share">
+      <button type="button" class="toolbar__button" data-action="share" title="Copy a link to this pizza" aria-label="Copy a link to this pizza">
+        <svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M10 13a5 5 0 0 0 7.5.5l3-3a5 5 0 0 0-7-7l-1.7 1.7" />
+          <path d="M14 11a5 5 0 0 0-7.5-.5l-3 3a5 5 0 0 0 7 7l1.7-1.7" />
+        </svg>
+      </button>
+      <span class="toast" role="status" aria-live="polite" data-toast>
+        <svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12l5 5L20 7" /></svg>
+        <span data-toast-text>Link copied</span>
+      </span>
+    </span>
     <button type="button" id="toggle-fullscreen" class="toolbar__button toggle-fullscreen" title="Fullscreen (F)" aria-label="Toggle fullscreen">
       <svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="fullscreen-out">
         <path d="M8 3H3v5M16 3h5v5M8 21H3v-5M16 21h5v-5" />
@@ -158,8 +164,6 @@ const tabs = [
     </section>
   </form>
 </aside>
-
-<div class="toast" role="status" aria-live="polite" data-toast></div>
 
 <style>
   /* ---- Shared chrome ------------------------------------------------ */
@@ -964,9 +968,6 @@ const tabs = [
       gap: 1.25rem;
     }
 
-    .toast {
-      bottom: calc(2rem + env(safe-area-inset-bottom));
-    }
   }
 
   @media (max-width: 520px) {
@@ -1000,35 +1001,61 @@ const tabs = [
     }
   }
 
-  /* ---- Toast --------------------------------------------------------- */
+  /* ---- "Link copied" bubble, hanging off the share button ------------ */
+  .share {
+    position: relative;
+    display: block;
+  }
+
   .toast {
-    position: fixed;
-    z-index: 8;
-    left: 50%;
-    bottom: 2rem;
-    padding: 0.6em 1.1em;
+    position: absolute;
+    top: calc(100% + 0.9rem);
+    right: 0;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4em;
+    padding: 0.5em 0.9em;
     border: 1px solid rgba(255, 255, 255, 0.12);
     border-radius: 5rem;
-    background: rgba(18, 8, 3, 0.8);
+    background: rgba(18, 8, 3, 0.85);
     backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.3);
     color: #fff;
-    font-size: 0.85rem;
+    font-size: 0.8rem;
     font-weight: 600;
-    transform: translate(-50%, 0.75rem);
+    white-space: nowrap;
+    transform: translateY(-0.4rem);
     opacity: 0;
     pointer-events: none;
     transition:
-      opacity 220ms ease,
+      opacity 180ms ease,
       transform 220ms cubic-bezier(0.2, 0.8, 0.2, 1);
   }
 
-  body.options-open .toast {
-    bottom: auto;
-    top: calc(5rem + env(safe-area-inset-top));
+  /* Little arrow pointing up at the button. */
+  .toast::before {
+    content: '';
+    position: absolute;
+    top: -0.35rem;
+    right: 0.9rem;
+    width: 0.7rem;
+    height: 0.7rem;
+    border-left: 1px solid rgba(255, 255, 255, 0.12);
+    border-top: 1px solid rgba(255, 255, 255, 0.12);
+    background: rgba(18, 8, 3, 0.85);
+    transform: rotate(45deg);
+  }
+
+  .toast svg {
+    width: 1em;
+    height: 1em;
+    color: #7ee08a;
   }
 
   .toast.show {
-    transform: translate(-50%, 0);
+    transform: translateY(0);
     opacity: 1;
   }
+
 </style>

@@ -218,7 +218,8 @@ export function initPanel(pizza: PizzaController) {
   let toastTimer = 0;
   const notify = (message: string) => {
     if (!toast) return;
-    toast.textContent = message;
+    const text = toast.querySelector('[data-toast-text]');
+    if (text) text.textContent = message;
     toast.classList.add('show');
     clearTimeout(toastTimer);
     toastTimer = window.setTimeout(() => toast.classList.remove('show'), 1800);
@@ -237,7 +238,6 @@ export function initPanel(pizza: PizzaController) {
   document.querySelectorAll('[data-action="share"]').forEach((el) => el.addEventListener('click', share));
   panel.querySelector('[data-action="reset"]')?.addEventListener('click', () => {
     apply({ ...defaultConfig, toppings: { ...defaultConfig.toppings } });
-    notify('Back to the house pizza');
   });
 
   /* Tabs: all focusable, arrows move between them, the dock animates to the new height. */
