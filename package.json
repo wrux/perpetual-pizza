@@ -10,9 +10,11 @@
     "astro": "astro"
   },
   "dependencies": {
-    "@astrojs/vercel": "^7.8.2",
     "@types/three": "^0.186.0",
     "astro": "^4.16.8",
     "three": "^0.186.1"
+  },
+  "devDependencies": {
+    "wrangler": "^4.158.0"
   }
 }
