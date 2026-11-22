@@ -3,3 +3,6 @@ Site: https://perpetual.pizza/
 Twitter: @wruz
 
 Doctype: HTML5
+
+Topping photos (Unsplash): David Foodphototasty (pepperoni, ham), Shourav Sheikh (mushroom, olive),
+Blake Wisz (basil), Thembi Johnson (jalapeno)

@@ -20,3 +20,7 @@ pnpm-debug.log*
 
 # macOS-specific files
 .DS_Store
+
+# source photos for the topping cut-outs (re-download from Unsplash; ids are the filenames)
+tools/photos/
+tools/debug/
