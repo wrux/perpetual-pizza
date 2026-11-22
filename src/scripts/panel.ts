@@ -148,7 +148,6 @@ const formatters: Record<string, (v: Primitive) => string> = {
   spinTurns: (v) => `${Number(v).toFixed(2)} turns`,
   elevation: (v) => `${v}°`,
   fov: (v) => `${v}°`,
-  pixelSize: (v) => `${v}px`,
 };
 
 export function initPanel(pizza: PizzaController) {
@@ -158,7 +157,6 @@ export function initPanel(pizza: PizzaController) {
 
   const inputs = Array.from(panel.querySelectorAll<HTMLInputElement | HTMLSelectElement>('[data-key]'));
   const outputs = Array.from(panel.querySelectorAll<HTMLOutputElement>('[data-output]'));
-  const conditional = Array.from(panel.querySelectorAll<HTMLElement>('[data-show-for]'));
 
   const readKey = (key: string): Primitive => (virtual[key] ? virtual[key].get(pizza.config) : (getPath(pizza.config, key) ?? ''));
 
@@ -170,43 +168,60 @@ export function initPanel(pizza: PizzaController) {
     el.style.setProperty('--p', `${pct}%`);
   };
 
+  const showValue = (out: HTMLOutputElement, value: Primitive) => {
+    const key = out.dataset.output!;
+    out.value = formatters[key] ? formatters[key](value) : String(value);
+    // A topping at zero is off the pizza: its tile fades back.
+    out.closest('.topping')?.classList.toggle('is-off', Number(value) === 0);
+  };
+
   /** Push the controller's config into the form. */
   function sync() {
     for (const el of inputs) {
       const value = readKey(el.dataset.key!);
-      if (el instanceof HTMLInputElement && el.type === 'checkbox') el.checked = Boolean(value);
-      else if (el instanceof HTMLInputElement && el.type === 'radio') el.checked = el.value === String(value);
+      if (el instanceof HTMLInputElement && el.type === 'radio') el.checked = el.value === String(value);
       else el.value = String(value);
       if (el instanceof HTMLInputElement && el.type === 'range') paintTrack(el);
     }
-    for (const out of outputs) {
-      const key = out.dataset.output!;
-      const value = readKey(key);
-      out.value = formatters[key] ? formatters[key](value) : String(value);
-    }
-    for (const el of conditional) {
-      el.hidden = !el.dataset.showFor!.split(/\s+/).includes(pizza.config.effect);
-    }
+    for (const out of outputs) showValue(out, readKey(out.dataset.output!));
   }
 
   function apply(patch: Partial<PizzaConfig>) {
+    clearTimeout(bakeTimer);
+    baking = {};
     pizza.update(patch);
     writeUrl(pizza.config);
     sync();
+  }
+
+  /*
+   * Changing a topping rebuilds the whole pizza, which is far too slow to do
+   * on every step of a drag. The number follows the slider straight away and
+   * the pizza is rebuilt once the slider has been still for a moment.
+   */
+  let baking: Partial<PizzaConfig['toppings']> = {};
+  let bakeTimer = 0;
+  function bake(topping: keyof PizzaConfig['toppings'], count: number) {
+    if ((baking[topping] ?? pizza.config.toppings[topping]) === count) return;
+    baking[topping] = count;
+    clearTimeout(bakeTimer);
+    bakeTimer = window.setTimeout(() => apply({ toppings: { ...pizza.config.toppings, ...baking } }), 160);
   }
 
   for (const el of inputs) {
     const onChange = () => {
       const key = el.dataset.key!;
       let value: Primitive;
-      if (el instanceof HTMLInputElement && el.type === 'checkbox') value = el.checked;
-      else if (el instanceof HTMLInputElement && el.type === 'range') {
+      if (el instanceof HTMLInputElement && el.type === 'range') {
         value = Number(el.value);
         paintTrack(el);
-      }
-      else value = Number.isNaN(Number(el.value)) ? el.value : Number(el.value);
+      } else value = Number.isNaN(Number(el.value)) ? el.value : Number(el.value);
 
-      if (virtual[key]) apply(virtual[key].set(Number(value)));
+      if (key.startsWith('toppings.')) {
+        const out = outputs.find((o) => o.dataset.output === key);
+        if (out) showValue(out, value);
+        bake(key.slice('toppings.'.length) as keyof PizzaConfig['toppings'], Number(value));
+      } else if (virtual[key]) apply(virtual[key].set(Number(value)));
       else apply(patchFor(key, value));
     };
     el.addEventListener('input', onChange);

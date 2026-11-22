@@ -14,6 +14,7 @@
 // foreshortening (1 = shot from directly overhead), which is stretched back out.
 // Irregular toppings that the colour walk gets wrong can be traced instead:
 // "polygon": [[x, y], ...] in photo pixels, in which case cx / cy / r are derived.
+// "holePolygon" traces the hole of a ring the same way; it must contain the centre.
 
 import sharp from 'sharp';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
@@ -149,10 +150,11 @@ async function cut(entry) {
     entry.r = Math.max(...entry.polygon.map(([x, y]) => Math.hypot(x - entry.cx, y - entry.cy)));
   }
   const { src, cx, cy, r, squash = 1 } = entry;
-  const hole = entry.hole ?? Boolean(entry.holeEllipse);
+  if (entry.holePolygon) entry.holePolygon = smoothPolygon(entry.holePolygon);
+  const hole = entry.hole ?? Boolean(entry.holeEllipse || entry.holePolygon);
   let outer = [];
   let inner = [];
-  const traced = (entry.polygon || entry.ellipse) && (!hole || entry.holeEllipse);
+  const traced = (entry.polygon || entry.ellipse) && (!hole || entry.holeEllipse || entry.holePolygon);
   if (!traced) {
     const half = Math.round(r * REACH);
     const halfY = Math.round(r * REACH * squash);
@@ -241,6 +243,9 @@ async function cut(entry) {
     });
   }
   inner = hole ? (entry.holeEllipse ? ellipseRing(entry.holeEllipse) : smoothRing(inner)) : null;
+  if (entry.holePolygon) {
+    inner = Array.from({ length: RAYS }, (_, k) => rayToPolygon(entry.holePolygon, cx, cy, (k / RAYS) * Math.PI * 2) / r);
+  }
 
   // Pull the outline in a touch so no fringe of cheese comes along.
   const INSET = entry.inset ?? 0.02;
@@ -328,4 +333,86 @@ for (const [kind, entries] of Object.entries(config.toppings)) {
   }
   console.log(`${kind}: ${cuts.length} cut-outs`);
 }
-await writeFile(path.join(ROOT, 'src/scripts/topping-photos.json'), JSON.stringify(manifest) + '\n');
+// The base of the pizza can come from one overhead photo of a whole, plain
+// pizza: "base": { src, cx, cy, inner, outer } gives its centre and the radii
+// of the crust's inside and outside edges, in photo pixels. Real pizzas aren't
+// round, so "rim": [[degrees, inner, outer], ...] can give those radii at
+// several angles (clockwise from 3 o'clock), and they are blended between.
+// Only the crust is taken from it; the cheese is painted.
+if (config.base) {
+  const { src, cx, cy, rim } = config.base;
+  // Radii of the crust's edges at an angle: blended smoothly between the marked angles.
+  const marks = rim ? [...rim].sort((p, q) => p[0] - q[0]) : null;
+  const edges = (a) => {
+    if (!marks) return [config.base.inner, config.base.outer];
+    const deg = (((a * 180) / Math.PI) % 360 + 360) % 360;
+    let i = marks.findIndex((m) => m[0] > deg);
+    if (i < 0) i = marks.length;
+    const before = marks[(i + marks.length - 1) % marks.length];
+    const after = marks[i % marks.length];
+    const span = (after[0] - before[0] + 360) % 360 || 360;
+    const t = ((deg - before[0] + 360) % 360) / span;
+    const ease = (1 - Math.cos(t * Math.PI)) / 2;
+    return [before[1] + (after[1] - before[1]) * ease, before[2] + (after[2] - before[2]) * ease];
+  };
+  const outer = marks ? Math.max(...marks.map((m) => m[2])) : config.base.outer;
+
+  // Crust: unwrapped into the layout the 3D crust is mapped with. u runs around
+  // the ring, v around the tube it is built from (0 outside edge, 0.25 top, 0.5
+  // inside edge, then the same again underneath). Seen from above, a point at
+  // tube angle t sits (cos t + 1) / 2 of the way from the inside edge to the
+  // outside. Sampling exactly there smears the photo down the crust's steep
+  // sides, so most of the weight goes to wrapping it evenly around the tube.
+  const W = 2048;
+  const H = 256;
+  const pad = Math.ceil(outer) + 2;
+  const side = pad * 2;
+  const photo = await region(src, Math.round(cx - pad), Math.round(cy - pad), side, side, side);
+  const out = Buffer.alloc(W * H * 3);
+  for (let y = 0; y < H; y++) {
+    const t = (y / H) * Math.PI * 2;
+    const wrapped = 1 - Math.abs(t <= Math.PI ? t : Math.PI * 2 - t) / Math.PI;
+    const across = ((Math.cos(t) + 1) / 2) * 0.25 + wrapped * 0.75;
+    for (let x = 0; x < W; x++) {
+      const a = (x / W) * Math.PI * 2;
+      const [from, to] = edges(a);
+      const r = from + (to - from) * across;
+      const fx = pad + Math.cos(a) * r;
+      const fy = pad + Math.sin(a) * r;
+      const x0 = Math.floor(fx);
+      const y0 = Math.floor(fy);
+      const tx = fx - x0;
+      const ty = fy - y0;
+      for (let c = 0; c < 3; c++) {
+        const at = (px, py) => photo[(py * side + px) * 3 + c];
+        const top = at(x0, y0) * (1 - tx) + at(x0 + 1, y0) * tx;
+        const bottom = at(x0, y0 + 1) * (1 - tx) + at(x0 + 1, y0 + 1) * tx;
+        out[(y * W + x) * 3 + c] = top * (1 - ty) + bottom * ty;
+      }
+    }
+  }
+  await sharp(out, { raw: { width: W, height: H, channels: 3 } }).webp({ quality: 88 }).toFile(path.join(ROOT, 'public/pizza/toppings/crust.webp'));
+  if (debug) {
+    await sharp(out, { raw: { width: W, height: H, channels: 3 } }).extract({ left: 0, top: 0, width: W, height: H / 2 }).png().toFile(path.join(ROOT, 'tools/debug/crust.png'));
+  }
+  console.log('base: crust unwrapped');
+}
+
+// A close-up of melted cheese, tiled over the painted cheese to give it a real
+// surface: "cheeseDetail": { src, left, top, size } is a square of photo pixels.
+if (config.cheeseDetail) {
+  const { src, left, top, size } = config.cheeseDetail;
+  const DETAIL = 2048;
+  const detail = await region(src, left, top, size, size, DETAIL);
+  await sharp(detail, { raw: { width: DETAIL, height: DETAIL, channels: 3 } }).webp({ quality: 88 }).toFile(path.join(ROOT, 'public/pizza/toppings/cheese-detail.webp'));
+  console.log('cheese detail: cropped');
+}
+
+await writeFile(
+  path.join(ROOT, 'src/scripts/topping-photos.json'),
+  JSON.stringify({
+    crust: config.base ? '/pizza/toppings/crust.webp' : null,
+    cheeseDetail: config.cheeseDetail ? '/pizza/toppings/cheese-detail.webp' : null,
+    toppings: manifest,
+  }) + '\n',
+);

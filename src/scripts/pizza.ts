@@ -58,7 +58,7 @@ export const defaultConfig: PizzaConfig = {
   ratio: 0.2,
   levels: 6,
   seed: 7,
-  toppings: { pepperoni: 27, mushroom: 10, basil: 5, olive: 14, jalapeno: 0, ham: 0 },
+  toppings: { pepperoni: 12, mushroom: 12, basil: 12, olive: 12, jalapeno: 12, ham: 12 },
   shadows: true,
   direction: 1,
   elevation: 41,
@@ -309,6 +309,13 @@ const HERB = rgb('#38491b');
 const CHEESE_SIZE = 1024;
 
 /**
+ * With a photographed cheese surface laid over it, the painted cheese only
+ * needs to say where the cheese is and how thick: the photo brings its own
+ * browning and flecks, and two sets would fight.
+ */
+const PHOTO_CHEESE = Boolean((photoManifest as { cheeseDetail?: string | null }).cheeseDetail);
+
+/**
  * Planar top-of-pizza texture: melted mozzarella over tomato sauce. The cheese
  * stops short of the crust, thins to orange where the sauce shows through, and
  * blisters into bubbles whose tops brown.
@@ -344,8 +351,8 @@ function cheeseTexture(seed: number) {
       const bigId = big.id;
       const reach = big.f1 / (0.28 + bigId * 0.34);
       const dome = clamp01(1 - reach * reach) * smoothstep(0.3, 0.42, bigId) * thick;
-      const brown = smoothstep(0.2, 0.85, dome) * smoothstep(0.52, 0.88, bigId);
-      const scorch = smoothstep(0.65, 1, dome) * smoothstep(0.8, 0.97, bigId);
+      const brown = PHOTO_CHEESE ? 0 : smoothstep(0.2, 0.85, dome) * smoothstep(0.52, 0.88, bigId);
+      const scorch = PHOTO_CHEESE ? 0 : smoothstep(0.65, 1, dome) * smoothstep(0.8, 0.97, bigId);
       // Small blisters in between.
       const little = n2.cells(x * 6 + 40 + warpX, y * 6 + 9 + warpY);
       const pimple = clamp01(1 - (little.f1 / 0.42) ** 2) * (little.id > 0.5 ? 1 : 0) * thick;
@@ -359,7 +366,7 @@ function cheeseTexture(seed: number) {
       let cheeseColor = mixRgb(CHEESE_CREAM, CHEESE_GOLD, clamp01(smoothstep(0.3, 0.7, melt) * 0.7 + toasty * 0.3));
       cheeseColor = mixRgb(cheeseColor, CHEESE_OIL, oil * 0.5);
       cheeseColor = mixRgb(cheeseColor, CHEESE_THIN, (1 - smoothstep(0.1, 0.75, thick)) * 0.85);
-      cheeseColor = mixRgb(cheeseColor, CHEESE_TOAST, clamp01(brown * 0.8 + pimple * 0.35 + toasty * 0.2));
+      cheeseColor = mixRgb(cheeseColor, CHEESE_TOAST, PHOTO_CHEESE ? 0 : clamp01(brown * 0.8 + pimple * 0.35 + toasty * 0.2));
       cheeseColor = mixRgb(cheeseColor, CHEESE_BROWN, brown * brown * 0.75);
       cheeseColor = mixRgb(cheeseColor, CHEESE_CHAR, scorch * 0.7);
 
@@ -375,7 +382,7 @@ function cheeseTexture(seed: number) {
 
       // Sparse oregano flecks.
       const fleck = n.cells(x * 16 + 7, y * 16 + 3);
-      if (fleck.id > 0.95 && fleck.f1 < 0.1 + fleck.id * 0.06) color = mixRgb(color, HERB, 0.75);
+      if (!PHOTO_CHEESE && fleck.id > 0.95 && fleck.f1 < 0.1 + fleck.id * 0.06) color = mixRgb(color, HERB, 0.75);
 
       // Fine grain, and a soft shadow where the top tucks under the crust.
       const shadeBy = (0.94 + grain * 0.12) * (1 - smoothstep(0.86, 0.98, r) * 0.35);
@@ -454,234 +461,12 @@ function crustTexture(seed: number) {
   );
 }
 
-const PEP_BASE = rgb('#a92c1d');
-const PEP_DARK = rgb('#7a1b12');
-const PEP_BRIGHT = rgb('#c5492b');
-const PEP_FAT = rgb('#de9a76');
-const PEP_SPICE = rgb('#4a130c');
-const PEP_RIM = rgb('#6a2012');
-
-/** Lathe-mapped pepperoni: u around, v from centre (0) to rim (0.5) to underside (1). */
-function pepperoniTexture(seed: number) {
-  const n = makeNoise(seed + 37, 128);
-  return paint(
-    512,
-    256,
-    (u, v) => {
-      // Sample noise in slice space so the marbling is isotropic, not radial streaks.
-      const rad = Math.min(v, 1 - v) * 2; // 0 centre .. 1 rim, mirrored underneath
-      const px = 16 + Math.cos(u * Math.PI * 2) * rad * 6;
-      const py = 16 + Math.sin(u * Math.PI * 2) * rad * 6;
-      const marble = n.fbm(px * 0.6, py * 0.6, 3);
-      const mottle = n.fbm(px * 2.5 + 20, py * 2.5 + 3, 3);
-      // Flecks of fat and darker bits of spice through the meat.
-      const fatCell = n.cells(px * 2.6 + mottle * 0.8, py * 2.6 + marble * 0.8);
-      const fatSize = 0.05 + fatCell.id * 0.16;
-      const flecks = (1 - smoothstep(fatSize, fatSize + 0.1, fatCell.f1)) * (fatCell.id > 0.5 ? 1 : 0);
-      const streaks = smoothstep(0.6, 0.7, n.fbm(px * 4.5 + 7, py * 4.5 + 13, 2));
-      const fat = Math.max(flecks * 0.8, streaks);
-      const spiceCell = n.cells(px * 3.1 + 50, py * 3.1 + 70);
-      const spice = (1 - smoothstep(0.08, 0.16, spiceCell.f1)) * (spiceCell.id > 0.6 ? 1 : 0);
-      // The edge crisps darker, unevenly.
-      const rim = smoothstep(0.86, 0.99, rad + (mottle - 0.5) * 0.1);
-
-      let color = mixRgb(PEP_BASE, PEP_DARK, smoothstep(0.35, 0.7, marble) * 0.7);
-      color = mixRgb(color, PEP_BRIGHT, smoothstep(0.5, 0.8, mottle) * 0.5);
-      color = mixRgb(color, PEP_FAT, fat * 0.45);
-      color = mixRgb(color, PEP_SPICE, spice * 0.6);
-      color = mixRgb(color, PEP_RIM, rim * 0.7);
-      return {
-        color,
-        height: 0.5 + mottle * 0.2 - fat * 0.2 + spice * 0.1 + rim * 0.15,
-        rough: 0.36 + fat * 0.12 + rim * 0.2 - (1 - rim) * marble * 0.1,
-      };
-    },
-    { normal: 2, wrapU: true },
-  );
-}
-
 /** Planar bounds of an extruded topping, shared by its UV map and its painter. */
 interface Bounds {
   minX: number;
   maxX: number;
   minY: number;
   maxY: number;
-}
-
-/** Shape-space point for a canvas pixel (canvas rows run top-down, so v = 0 is maxY). */
-const shapePoint = (b: Bounds, u: number, v: number) => ({
-  x: b.minX + u * (b.maxX - b.minX),
-  y: b.maxY - v * (b.maxY - b.minY),
-});
-
-const MUSH_W = 0.06;
-const MUSH_BOUNDS: Bounds = { minX: -0.066, maxX: 0.066, minY: -0.066, maxY: 0.076 };
-
-const MUSH_FLESH = rgb('#c09a66');
-const MUSH_SKIN = rgb('#8f6238');
-const MUSH_RIM = rgb('#5a391d');
-const MUSH_GILL = rgb('#4a2f1a');
-const MUSH_GILL_DARK = rgb('#2a180c');
-const MUSH_STEM = rgb('#c8a672');
-const MUSH_SEAR = rgb('#96642e');
-const MUSH_FLESH_DARK = rgb('#a9824e');
-const MUSH_STEM_DARK = rgb('#c9ad7e');
-
-/** Face of a mushroom slice: pale cap with a brown skin, dark gills, fibrous stem. */
-function mushroomTexture(seed: number) {
-  const n = makeNoise(seed + 53, 128);
-  return paint(512, 512, (u, v) => {
-    const { x, y } = shapePoint(MUSH_BOUNDS, u, v);
-    const grain = n.fbm(x * 90 + 3, y * 90 + 7, 3, 0.5);
-    const blotch = n.fbm(x * 25 + 11, y * 25 + 2, 3, 0.5);
-
-    // Cap: upper half-ellipse. Gill line curves under it.
-    const capR = Math.sqrt((x / MUSH_W) ** 2 + (y / 0.07) ** 2);
-    const gillY = gillLine(x);
-    // The stem's flesh runs straight up into the cap; the gills only show either side of it.
-    const inGills = y < gillY + 0.009 && y > gillY - 0.006 && Math.abs(x) > MUSH_W * 0.38;
-
-    let color: Rgb;
-    let height: number;
-    let rough: number;
-    if (y >= gillY + 0.009 || (y >= 0 && capR <= 1.02)) {
-      // Cap flesh, browning toward the skin at the edge.
-      const edge = smoothstep(0.78, 1, capR);
-      const rim = smoothstep(0.93, 1, capR);
-      color = mixRgb(MUSH_FLESH, MUSH_FLESH_DARK, smoothstep(0.35, 0.7, grain));
-      // Seared patches from the oven, then the brown skin at the edge.
-      color = mixRgb(color, MUSH_SEAR, smoothstep(0.45, 0.7, blotch) * 0.6);
-      color = mixRgb(color, MUSH_SKIN, edge * 0.85);
-      color = mixRgb(color, MUSH_RIM, rim * 0.8);
-      height = 0.55 + grain * 0.1 - edge * 0.25;
-      rough = 0.55 - edge * 0.1 - smoothstep(0.45, 0.7, blotch) * 0.1;
-    } else if (inGills) {
-      // Gills radiate from the cap centre.
-      const ang = Math.atan2(y - 0.03, x);
-      const line = Math.abs(Math.sin(ang * 60));
-      color = mixRgb(MUSH_GILL, MUSH_GILL_DARK, smoothstep(0.5, 0.95, line) * 0.8 + grain * 0.2);
-      height = 0.3 + (1 - line) * 0.1;
-      rough = 0.9;
-    } else {
-      // Stem: vertical fibres.
-      const fibre = n.fbm(x * 160 + 9, y * 12 + 4, 3, 0.5);
-      color = mixRgb(MUSH_STEM, MUSH_STEM_DARK, smoothstep(0.35, 0.7, fibre));
-      color = mixRgb(color, MUSH_SEAR, smoothstep(0.5, 0.75, blotch) * 0.5);
-      height = 0.5 + fibre * 0.12;
-      rough = 0.58;
-    }
-    return { color, height, rough };
-  }, { normal: 2.5 });
-}
-
-const BASIL_BOUNDS: Bounds = { minX: -0.066, maxX: 0.066, minY: -0.071, maxY: 0.076 };
-const BASIL_DARK = rgb('#1b4216');
-const BASIL_LIGHT = rgb('#3c7c2a');
-const BASIL_VEIN = rgb('#7fae52');
-const BASIL_VEIN_SOFT = rgb('#4f8c38');
-const BASIL_WILT = rgb('#14290d');
-
-/** Basil leaf: two-tone green with a midrib and angled side veins. */
-function basilTexture(seed: number) {
-  const n = makeNoise(seed + 61, 128);
-  return paint(512, 512, (u, v) => {
-    const { x, y } = shapePoint(BASIL_BOUNDS, u, v);
-    const t = clamp01((y + 0.07) / 0.145); // 0 stem end .. 1 tip
-    const mottle = n.fbm(x * 40 + 5, y * 40 + 9, 4, 0.5);
-    const cells = n.fbm(x * 140 + 1, y * 140 + 3, 2, 0.5);
-
-    let color = mixRgb(BASIL_DARK, BASIL_LIGHT, smoothstep(0.3, 0.75, mottle) * 0.8 + cells * 0.2);
-
-    // Midrib, tapering to the tip.
-    const midW = 0.0028 * (1 - t * 0.8) + 0.0006;
-    const mid = 1 - smoothstep(midW * 0.5, midW, Math.abs(x));
-    // Side veins leave the midrib every 14mm and sweep toward the tip.
-    const along = y - Math.abs(x) * 0.65 + 0.05;
-    const frac = ((along % 0.014) + 0.014) % 0.014;
-    const veinD = Math.min(frac, 0.014 - frac);
-    const side = (1 - smoothstep(0.0005, 0.0013, veinD)) * (1 - smoothstep(0.02, 0.06, Math.abs(x))) * (Math.abs(x) > midW ? 1 : 0);
-
-    color = mixRgb(color, BASIL_VEIN_SOFT, side * 0.6);
-    color = mixRgb(color, BASIL_VEIN, mid * 0.85);
-    // The oven wilts the edges darker.
-    const halfWidth = 0.064 * Math.pow(Math.sin(Math.PI * Math.pow(t, 0.85)), 0.9) + 0.001;
-    const wilt = smoothstep(0.7, 1, Math.abs(x) / halfWidth) * (0.5 + mottle * 0.5);
-    color = mixRgb(color, BASIL_WILT, wilt * 0.7);
-
-    // The blade puckers up between the veins.
-    const height = 0.5 + mottle * 0.12 + smoothstep(0, 0.007, veinD) * 0.12 - mid * 0.3 - side * 0.1;
-    const rough = 0.34 + wilt * 0.2;
-    return { color, height, rough };
-  }, { normal: 3 });
-}
-
-const OLIVE_SKIN = rgb('#1a1214');
-const OLIVE_CUT = rgb('#3d2a2c');
-const OLIVE_CUT_LIGHT = rgb('#5a3f3f');
-const OLIVE_WALL = rgb('#2a1d1f');
-
-/** Lathe-mapped olive ring: v runs around the profile, outer skin in the middle. */
-function oliveTexture(seed: number) {
-  const n = makeNoise(seed + 71, 64);
-  return paint(256, 64, (u, v) => {
-    const x = u * 24;
-    const y = v * 6;
-    const grain = n.fbm(x, y, 3, 0.5);
-    // Profile: inner wall (0..0.1), bottom cut (0.1..0.3), skin (0.3..0.7), top cut, inner wall.
-    const skin = smoothstep(0.27, 0.33, v) * (1 - smoothstep(0.67, 0.73, v));
-    const inner = 1 - smoothstep(0.08, 0.12, Math.min(v, 1 - v));
-    let color = mixRgb(OLIVE_CUT, OLIVE_CUT_LIGHT, smoothstep(0.35, 0.7, grain) * 0.8);
-    color = mixRgb(color, OLIVE_SKIN, skin);
-    color = mixRgb(color, OLIVE_WALL, inner * 0.6);
-    return { color, height: 0.5 + grain * 0.2 - skin * 0.1, rough: mix(0.5, 0.22, skin) };
-  }, { normal: 1, wrapU: true });
-}
-
-const JAL_SKIN = rgb('#337d24');
-const JAL_SKIN_DARK = rgb('#235c18');
-const JAL_FLESH = rgb('#a3c66c');
-const JAL_SEED = rgb('#f1e7b8');
-const JAL_FLESH_DARK = rgb('#82ad4f');
-
-/** Lathe-mapped jalapeño ring: glossy green skin outside, pale flesh with seeds on the cut faces. */
-function jalapenoTexture(seed: number) {
-  const n = makeNoise(seed + 83, 64);
-  return paint(256, 64, (u, v) => {
-    const x = u * 24;
-    const y = v * 6;
-    const grain = n.fbm(x, y, 3, 0.5);
-    const skin = smoothstep(0.27, 0.33, v) * (1 - smoothstep(0.67, 0.73, v));
-    const inner = 1 - smoothstep(0.08, 0.12, Math.min(v, 1 - v));
-    // Seeds cluster on the inner part of the cut faces.
-    const seeds = smoothstep(0.75, 0.85, n.fbm(x * 5 + 3, y * 2 + 9, 2, 0.5)) * inner * 0.9;
-    let color = mixRgb(JAL_FLESH, JAL_FLESH_DARK, smoothstep(0.35, 0.7, grain) * 0.7);
-    color = mixRgb(color, JAL_SEED, seeds);
-    color = mixRgb(color, mixRgb(JAL_SKIN, JAL_SKIN_DARK, smoothstep(0.3, 0.7, grain)), skin);
-    return { color, height: 0.5 + grain * 0.2 + seeds * 0.3 - skin * 0.1, rough: mix(0.55, 0.22, skin) };
-  }, { normal: 1.5, wrapU: true });
-}
-
-const HAM_BOUNDS: Bounds = { minX: -0.072, maxX: 0.072, minY: -0.06, maxY: 0.06 };
-const HAM_BASE = rgb('#dc8890');
-const HAM_DARK = rgb('#c26a74');
-const HAM_FAT = rgb('#efcdc4');
-
-/** Ham piece: pink with pale fat marbling and a slightly darker, drier edge. */
-function hamTexture(seed: number) {
-  const n = makeNoise(seed + 97, 128);
-  return paint(512, 512, (u, v) => {
-    const { x, y } = shapePoint(HAM_BOUNDS, u, v);
-    const grain = n.fbm(x * 60 + 2, y * 60 + 5, 3, 0.5);
-    // Fat runs in long streaks.
-    const streak = n.fbm(x * 18 + 7, y * 70 + 1, 3, 0.55);
-    const fat = smoothstep(0.6, 0.72, streak);
-    const r = Math.hypot(x / 0.062, y / 0.052);
-    const edge = smoothstep(0.78, 1, r);
-    let color = mixRgb(HAM_BASE, HAM_DARK, smoothstep(0.35, 0.7, grain) * 0.7);
-    color = mixRgb(color, HAM_FAT, fat * 0.85);
-    color = mixRgb(color, HAM_DARK, edge * 0.5);
-    return { color, height: 0.5 + grain * 0.15 + fat * 0.1, rough: 0.5 - fat * 0.1 + edge * 0.15 };
-  }, { normal: 1.5 });
 }
 
 /* ------------------------------------------------------------------ */
@@ -758,25 +543,6 @@ function crustGeometry(seed: number, tex: Painted) {
   }
   return weldNormals(geo);
 }
-
-/** Scale a lathe's radius around its axis by a periodic noise so the outline isn't a perfect circle. */
-function roughenOutline(geo: THREE.BufferGeometry, seed: number, amount: number) {
-  const n = makeNoise(seed);
-  const pos = geo.attributes.position as THREE.BufferAttribute;
-  for (let i = 0; i < pos.count; i++) {
-    const x = pos.getX(i);
-    const z = pos.getZ(i);
-    const a = Math.atan2(z, x);
-    const s = 1 + (n.fbm(Math.cos(a) * 2.5 + 5, Math.sin(a) * 2.5 + 5, 2, 0.5) - 0.5) * amount;
-    pos.setX(i, x * s);
-    pos.setZ(i, z * s);
-  }
-  geo.computeVertexNormals();
-  return geo;
-}
-
-/** How many differently shaped models each topping has, so neighbours aren't copies of each other. */
-const VARIANTS = 3;
 
 /** Move every vertex of a geometry, then rebuild its normals. */
 function deform(geo: THREE.BufferGeometry, move: (p: THREE.Vector3) => void) {
@@ -857,224 +623,6 @@ function slab({ outline, centre = new THREE.Vector2(), bounds: b, top, rings = [
   return geo;
 }
 
-/**
- * Cross-section of a sliced ring (olive, jalapeño): a rounded rectangle as a
- * closed loop running inside wall, underside, skin, top, back to the inside.
- */
-function ringProfile(mid: number, halfWidth: number, halfHeight: number, power = 3, steps = 24) {
-  const pts: THREE.Vector2[] = [];
-  for (let i = 0; i <= steps; i++) {
-    const a = Math.PI + (i / steps) * Math.PI * 2;
-    const c = Math.cos(a);
-    const s = Math.sin(a);
-    const k = 1 / Math.pow(Math.abs(c) ** power + Math.abs(s) ** power, 1 / power);
-    pts.push(new THREE.Vector2(mid + c * k * halfWidth, s * k * halfHeight));
-  }
-  return pts;
-}
-
-/**
- * Pepperoni slice: thin, with a rounded lip, a wavy lie and a slightly
- * irregular edge. The variants run from nearly flat to curled up into a cup.
- */
-function pepperoniGeometry(seed: number, variant: number) {
-  const pts: THREE.Vector2[] = [];
-  const R = 0.066;
-  const THICK = 0.0055;
-  const CUP = [0.004, 0.01, 0.017][variant];
-  const RIPPLE = [1.5, 1, 0.45][variant];
-  const STEPS = 16;
-  // Top surface, centre to rim (cupping up at the edge).
-  for (let i = 0; i <= STEPS; i++) {
-    const t = i / STEPS;
-    pts.push(new THREE.Vector2(t * R, THICK + Math.pow(t, 3) * CUP));
-  }
-  // Rounded lip.
-  pts.push(new THREE.Vector2(R + 0.0012, CUP + THICK * 0.82));
-  pts.push(new THREE.Vector2(R + 0.002, CUP + THICK * 0.5));
-  pts.push(new THREE.Vector2(R + 0.0012, CUP + THICK * 0.18));
-  // Underside, rim back to centre.
-  for (let i = STEPS; i >= 0; i--) {
-    const t = i / STEPS;
-    pts.push(new THREE.Vector2(t * R, Math.pow(t, 3) * CUP));
-  }
-  const geo = new THREE.LatheGeometry(pts, 64);
-  // Slices never lie dead flat: ripple the outer part up and down.
-  const rng = mulberry32(seed + variant * 17);
-  const p2 = rng() * Math.PI * 2;
-  const p3 = rng() * Math.PI * 2;
-  const p5 = rng() * Math.PI * 2;
-  const pos = geo.attributes.position as THREE.BufferAttribute;
-  for (let i = 0; i < pos.count; i++) {
-    const x = pos.getX(i);
-    const z = pos.getZ(i);
-    const a = Math.atan2(z, x);
-    const rr = Math.hypot(x, z) / R;
-    const wave = Math.sin(a * 2 + p2) * 0.0035 + Math.sin(a * 3 + p3) * 0.0022 + Math.sin(a * 5 + p5) * 0.0012 * rr;
-    pos.setY(i, pos.getY(i) + wave * RIPPLE * rr * rr);
-  }
-  return weldNormals(roughenOutline(geo, seed + 81 + variant, 0.14));
-}
-
-/** Flat mushroom slice outline: domed cap with a stem. */
-function mushroomShape() {
-  const s = new THREE.Shape();
-  const w = MUSH_W;
-  s.moveTo(-w, 0);
-  s.bezierCurveTo(-w, 0.045, -w * 0.45, 0.07, 0, 0.07);
-  s.bezierCurveTo(w * 0.45, 0.07, w, 0.045, w, 0);
-  s.lineTo(w * 0.42, -0.004);
-  s.bezierCurveTo(w * 0.4, -0.03, w * 0.34, -0.05, w * 0.3, -0.056);
-  s.quadraticCurveTo(0, -0.064, -w * 0.3, -0.056);
-  s.bezierCurveTo(-w * 0.34, -0.05, -w * 0.4, -0.03, -w * 0.42, -0.004);
-  s.closePath();
-  return s;
-}
-
-/** Where the gills run under the cap, in slice space. Shared by the texture and the end-cut outline. */
-const gillLine = (x: number) => 0.004 - 0.016 * (1 - Math.min((x / MUSH_W) ** 2, 1));
-
-/**
- * Outline of a mushroom slice, anticlockwise. A `whole` slice runs through the
- * stem; otherwise it's an end cut that only caught the cap.
- */
-function mushroomOutline(whole: boolean) {
-  const pts: THREE.Vector2[] = [];
-  if (whole) {
-    for (const p of mushroomShape().getPoints(10)) {
-      if (!pts.length || pts[pts.length - 1].distanceTo(p) > 1e-5) pts.push(p);
-    }
-    if (pts[0].distanceTo(pts[pts.length - 1]) < 1e-5) pts.pop();
-    return pts.reverse(); // the shape is drawn clockwise
-  }
-  const STEPS = 24;
-  for (let i = 0; i <= STEPS; i++) {
-    const a = (i / STEPS) * Math.PI;
-    pts.push(new THREE.Vector2(Math.cos(a) * MUSH_W, Math.sin(a) * 0.07));
-  }
-  for (let i = 1; i < STEPS; i++) {
-    const x = -MUSH_W + (2 * MUSH_W * i) / STEPS;
-    pts.push(new THREE.Vector2(x, gillLine(x) - 0.006));
-  }
-  return pts;
-}
-
-/**
- * A cooked mushroom slice: a solid sliver with a rounded edge that has
- * shrivelled and curled in the oven. Two variants are cut through the stem,
- * the third is an end cut of the cap alone.
- */
-function mushroomGeometry(seed: number, variant: number) {
-  const n = makeNoise(seed + 59 + variant * 7, 64);
-  const THICK = 0.011;
-  const geo = slab({
-    outline: mushroomOutline(variant !== 2),
-    centre: new THREE.Vector2(0, 0.024),
-    bounds: MUSH_BOUNDS,
-    top: (x, y, edge) =>
-      THICK * (1 - 0.6 * smoothstep(0.75, 1, edge) ** 2) + (n.fbm(x * 40 + 3, y * 40 + 8, 2) - 0.5) * 0.004,
-  });
-  const curl = [0.9, -0.7, 0.6][variant];
-  const stem = [1, 0.72, 1][variant];
-  const lean = [0.1, -0.25, 0][variant];
-  return deform(geo, (p) => {
-    if (p.y < 0) {
-      p.x += p.y * lean;
-      p.y *= stem;
-    }
-    const across = (p.x / MUSH_W) ** 2;
-    // Either the sides of the cap lift, or the middle arches up off the cheese.
-    p.z += 0.007 * (curl > 0 ? curl * across : -curl * (1 - Math.min(across, 1)));
-    // The stem end kicks up a little, and the whole slice buckles.
-    p.z += 0.005 * (Math.max(-p.y, 0) / 0.06) ** 2 + (n.fbm(p.x * 14 + 1, p.y * 14 + 6, 2) - 0.5) * 0.006;
-  });
-}
-
-/**
- * A thin sheet filling an outline, built as rings fanning out from the origin
- * so it has vertices inside to bend. `lift` gives the height of each point.
- * The outline must wind anticlockwise and be visible from the origin.
- */
-function fanSheet(outline: THREE.Vector2[], rings: number, b: Bounds, lift: (x: number, y: number) => number) {
-  const n = outline.length;
-  const positions: number[] = [];
-  const uvs: number[] = [];
-  const index: number[] = [];
-  const push = (x: number, y: number) => {
-    positions.push(x, y, lift(x, y));
-    uvs.push((x - b.minX) / (b.maxX - b.minX), (y - b.minY) / (b.maxY - b.minY));
-  };
-  push(0, 0);
-  for (let j = 1; j <= rings; j++) for (const p of outline) push((p.x * j) / rings, (p.y * j) / rings);
-  for (let i = 0; i < n; i++) index.push(0, 1 + i, 1 + ((i + 1) % n));
-  for (let j = 1; j < rings; j++) {
-    for (let i = 0; i < n; i++) {
-      const a = 1 + (j - 1) * n + i;
-      const bb = 1 + (j - 1) * n + ((i + 1) % n);
-      const c = a + n;
-      const d = bb + n;
-      index.push(a, c, d, a, d, bb);
-    }
-  }
-  const geo = new THREE.BufferGeometry();
-  geo.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
-  geo.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2));
-  geo.setIndex(index);
-  geo.computeVertexNormals();
-  return geo;
-}
-
-/** Basil leaf outline with a gently wavy edge and a pointed tip. */
-function basilOutline() {
-  const L = 0.145;
-  const STEPS = 28;
-  const pts: THREE.Vector2[] = [];
-  const half = (t: number, side: number) => {
-    const w = 0.064 * Math.pow(Math.sin(Math.PI * Math.pow(t, 0.85)), 0.9);
-    const wave = 1 + 0.05 * Math.sin(t * 34 + side * 1.3);
-    return new THREE.Vector2(side * w * wave, -0.07 + t * L);
-  };
-  for (let i = 0; i <= STEPS; i++) pts.push(half(i / STEPS, 1));
-  for (let i = STEPS - 1; i >= 1; i--) pts.push(half(i / STEPS, -1));
-  return pts;
-}
-
-/**
- * A wilted basil leaf: creased along the midrib, edges rippled and lifting,
- * tip curling up. The variants are a cupped leaf, one with a side folded up
- * and one that has twisted as it dried.
- */
-function basilGeometry(seed: number, variant: number) {
-  const n = makeNoise(seed + 67 + variant * 5, 64);
-  const edgeLift = [0.009, 0.004, 0.011][variant];
-  const tipCurl = [0.014, 0.007, 0.022][variant];
-  const ripple = [0.0035, 0.005, 0.003][variant];
-  const phase = variant * 2.1;
-  return fanSheet(basilOutline(), 8, BASIL_BOUNDS, (x, y) => {
-    const across = Math.abs(x) / 0.064;
-    let z =
-      edgeLift * Math.pow(across, 1.6) + // edges lift
-      tipCurl * Math.pow(Math.max(y, 0) / 0.075, 2.5) + // tip curls
-      0.005 * Math.pow(Math.max(-y, 0) / 0.07, 2) + // stem end lifts a little
-      ripple * Math.sin(y * 110 + phase + (x > 0 ? 0 : 1.7)) * across * across + // rippled edge
-      (n.fbm(x * 45 + 9, y * 45 + 4, 2) - 0.5) * 0.008 - // wrinkles
-      0.002 * (1 - smoothstep(0, 0.012, Math.abs(x))); // midrib crease
-    if (variant === 1) z += 0.026 * Math.pow(Math.max(x, 0) / 0.064, 1.3); // one side folded up
-    if (variant === 2) z += x * y * 1.8 + 0.006; // twisted
-    return z;
-  });
-}
-
-/** Sliced black olive: a chunky ring with rounded edges, out of round, with a hole that varies in size. */
-function oliveGeometry(seed: number, variant: number) {
-  const mid = [0.0275, 0.029, 0.026][variant];
-  const halfWidth = [0.0125, 0.011, 0.0135][variant];
-  const geo = new THREE.LatheGeometry(ringProfile(mid, halfWidth, 0.0085), 40);
-  // Olives are oval, so slices are too.
-  geo.scale(1, 1, [0.9, 1, 0.82][variant]);
-  return weldNormals(roughenOutline(geo, seed + 91 + variant * 3, 0.14));
-}
-
 /** Bilinear sample of a painted height map. u, v in 0..1 with v running top-down like the canvas. */
 function sampleHeight(tex: ReturnType<typeof paint>, u: number, v: number) {
   const { heightData, width, height } = tex;
@@ -1106,97 +654,6 @@ function displaceRing(geo: THREE.BufferGeometry, tex: ReturnType<typeof paint>) 
   }
   geo.computeVertexNormals();
   return geo;
-}
-
-/**
- * Jalapeño slice: a ring of flesh, the pale membrane that spans it in three or
- * four thin ribs, and seeds clinging to the membrane. Returned as three parts,
- * one per material.
- */
-function jalapenoGeometry(seed: number, variant: number) {
-  const rng = mulberry32(seed + 107 + variant * 13);
-  const n = makeNoise(seed + 109 + variant * 3, 64);
-  // A thin wall with flat cut faces, well out of round.
-  const INNER = 0.0385;
-  const ring = new THREE.LatheGeometry(ringProfile(0.044, 0.0055, 0.006, 5), 56);
-  ring.scale(1, 1, [0.88, 1, 0.8][variant]);
-  weldNormals(roughenOutline(ring, seed + 101 + variant * 3, 0.24));
-
-  // Membrane: a small core with thin ribs reaching out into the ring wall.
-  const ribs: Array<{ angle: number; width: number }> = [];
-  const count = variant === 1 ? 4 : 3;
-  const turn = rng() * Math.PI * 2;
-  for (let k = 0; k < count; k++) {
-    ribs.push({ angle: turn + ((k + (rng() - 0.5) * 0.5) / count) * Math.PI * 2, width: 0.07 + rng() * 0.05 });
-  }
-  const outline: THREE.Vector2[] = [];
-  const STEPS = 96;
-  for (let i = 0; i < STEPS; i++) {
-    const a = (i / STEPS) * Math.PI * 2;
-    let reach = 0;
-    for (const rib of ribs) {
-      const d = Math.atan2(Math.sin(a - rib.angle), Math.cos(a - rib.angle));
-      reach = Math.max(reach, Math.exp(-((d / rib.width) ** 2)));
-    }
-    const core = 0.007 + n.fbm(Math.cos(a) * 2 + 4, Math.sin(a) * 2 + 4, 2) * 0.006;
-    const r = core + (INNER * 0.9 - core) * reach;
-    outline.push(new THREE.Vector2(Math.cos(a) * r, Math.sin(a) * r));
-  }
-  const membrane = slab({
-    outline,
-    bounds: { minX: -0.04, maxX: 0.04, minY: -0.04, maxY: 0.04 },
-    top: (x, y, edge) =>
-      0.008 * (1 - 0.45 * smoothstep(0.5, 1, edge) ** 2) + (n.fbm(x * 120 + 2, y * 120 + 5, 2) - 0.5) * 0.002,
-    rings: [0.35, 0.65, 0.85, 1],
-  });
-  // The slab is built lying in the xy plane; the ring's axis is y.
-  membrane.rotateX(-Math.PI / 2);
-  membrane.translate(0, -0.006, 0);
-
-  // Seeds: flat teardrops clinging to the core and along the ribs.
-  const seeds: THREE.BufferGeometry[] = [];
-  for (let i = 0; i < 16; i++) {
-    const s = new THREE.SphereGeometry(0.0034, 8, 6);
-    s.scale(1.25, 0.32, 0.8);
-    s.rotateZ((rng() - 0.5) * 0.7);
-    s.rotateY(rng() * Math.PI * 2);
-    const rib = ribs[Math.floor(rng() * ribs.length)];
-    const along = rng() < 0.45 ? rng() * 0.008 : 0.006 + rng() * 0.016;
-    const a = rib.angle + (rng() - 0.5) * (along < 0.008 ? 6 : 0.5);
-    s.translate(Math.cos(a) * along, 0.0022 + rng() * 0.0012, -Math.sin(a) * along);
-    seeds.push(s);
-  }
-  return { ring, membrane, seeds: mergeGeometries(seeds) };
-}
-
-/** Torn ham piece: a thin slice with a wobbly outline, rumpled into folds, with lifted corners. */
-function hamGeometry(seed: number, variant: number) {
-  const n = makeNoise(seed + 103 + variant * 9);
-  const pts: THREE.Vector2[] = [];
-  const steps = 40;
-  for (let i = 0; i < steps; i++) {
-    const a = (i / steps) * Math.PI * 2;
-    // Superellipse for a soft rectangle, then noise for torn edges.
-    const c = Math.cos(a);
-    const sn = Math.sin(a);
-    const k = 1 / Math.pow(Math.pow(Math.abs(c), 3) + Math.pow(Math.abs(sn), 3), 1 / 3);
-    const wobble = 0.8 + n.fbm(c * 2 + 5, sn * 2 + 5, 3, 0.5) * 0.4;
-    pts.push(new THREE.Vector2(c * k * 0.058 * wobble, sn * k * 0.048 * wobble));
-  }
-  const geo = slab({
-    outline: pts,
-    bounds: HAM_BOUNDS,
-    top: (_x, _y, edge) => 0.004 * (1 - 0.5 * smoothstep(0.8, 1, edge) ** 2),
-  });
-  const kx = [55, 85, 35][variant];
-  const ky = [30, -45, 75][variant];
-  return deform(geo, (p) => {
-    const r = Math.hypot(p.x / 0.062, p.y / 0.052);
-    p.z +=
-      0.01 * r ** 3 + // corners lift
-      n.fbm(p.x * 30 + 1, p.y * 30 + 2, 2, 0.5) * 0.009 + // rumples
-      0.0045 * (Math.sin(p.x * kx + p.y * ky) + 1) * (0.4 + r * 0.6); // folds
-  });
 }
 
 /* ------------------------------------------------------------------ */
@@ -1252,17 +709,17 @@ const PHOTO_LOOK: Record<Kind, PhotoLook> = {
   mushroom: { radius: 0.062, thick: 0.009, rough: 0.5, clearcoat: 0, tint: '#d2d2d2', relief: 1, grain: 2, cup: 0.002, wave: 0.002, buckle: 0.004, fold: 0 },
   // Fresh basil goes on after the oven: bright, smooth, creased down the middle.
   basil: { radius: 0.095, thick: 0.0018, rough: 0.5, clearcoat: 0, tint: '#f4f4f4', relief: 0.7, grain: 0.5, cup: 0.002, wave: 0.004, buckle: 0.005, fold: 0.007 },
-  // Black olives are near-black and wet; the source photo runs brown and is small, so lean on gloss rather than its detail.
-  olive: { radius: 0.04, thick: 0.009, rough: 0.2, clearcoat: 0.8, tint: '#8c868e', relief: 0.25, grain: 0.4, cup: 0, wave: 0, buckle: 0, fold: 0 },
+  // Baked olive slices: matt black flesh with a soft wet sheen, not a mirror gloss.
+  olive: { radius: 0.05, thick: 0.009, rough: 0.4, clearcoat: 0.25, tint: '#d8d8d8', relief: 0.8, grain: 1, cup: 0, wave: 0.001, buckle: 0.001, fold: 0 },
   jalapeno: { radius: 0.05, thick: 0.007, rough: 0.36, clearcoat: 0.3, tint: '#d2d2d2', relief: 1, grain: 2, cup: 0, wave: 0.001, buckle: 0, fold: 0 },
   ham: { radius: 0.066, thick: 0.004, rough: 0.5, clearcoat: 0, tint: '#d2d2d2', relief: 1, grain: 2, cup: 0.004, wave: 0.004, buckle: 0.008, fold: 0 },
 };
 
-/** Fetch every topping atlas listed in the manifest. A topping whose atlas fails to load keeps its generated model. */
+/** Fetch every topping atlas listed in the manifest. A topping whose atlas fails to load is left off the pizza. */
 async function loadPhotos(): Promise<PhotoSet> {
   const set: PhotoSet = {};
   const loader = new THREE.TextureLoader();
-  const sheets = photoManifest as Partial<Record<Kind, { file: string; cutouts: PhotoCutout[] }>>;
+  const sheets = photoManifest.toppings as Partial<Record<Kind, { file: string; cutouts: PhotoCutout[] }>>;
   await Promise.all(
     (Object.keys(sheets) as Kind[]).map(async (kind) => {
       const sheet = sheets[kind]!;
@@ -1272,15 +729,54 @@ async function loadPhotos(): Promise<PhotoSet> {
         texture.anisotropy = 8;
         set[kind] = { texture, normalMap: photoNormals(texture.image as HTMLImageElement), cutouts: sheet.cutouts };
       } catch {
-        // Leave this kind to the generated model.
+        // Leave this kind off the pizza.
       }
     }),
   );
   return set;
 }
 
+/**
+ * Photographs for the base of the pizza, made by tools/cutout.mjs. Either is
+ * null when it is missing, and the painted version is used on its own.
+ */
+interface BasePhotos {
+  /** The crust unwrapped around the ring. */
+  crust: THREE.Texture | null;
+  /** A close-up of melted cheese, tiled over the painted cheese to give it a real surface. */
+  cheeseDetail: THREE.Texture | null;
+}
+
+async function loadBasePhotos(): Promise<BasePhotos> {
+  const files = photoManifest as { crust: string | null; cheeseDetail: string | null };
+  const crust = files.crust
+    ? new THREE.TextureLoader()
+        .loadAsync(files.crust)
+        .then((texture) => {
+          texture.colorSpace = THREE.SRGBColorSpace;
+          texture.wrapS = texture.wrapT = THREE.RepeatWrapping;
+          texture.anisotropy = 8;
+          return texture;
+        })
+        .catch(() => null)
+    : null;
+  const cheeseDetail = files.cheeseDetail
+    ? new THREE.TextureLoader()
+        .loadAsync(files.cheeseDetail)
+        .then((texture) => {
+          texture.colorSpace = THREE.SRGBColorSpace;
+          // Mirrored, so the photo meets itself at every repeat and no seam shows.
+          texture.wrapS = texture.wrapT = THREE.MirroredRepeatWrapping;
+          texture.anisotropy = 8;
+          return texture;
+        })
+        .catch(() => null)
+    : null;
+  return { crust: await crust, cheeseDetail: await cheeseDetail };
+}
+
 /** A photo has no depth, so fake some: treat brightness as height. Read at half size, which also softens it. */
-function photoNormals(image: HTMLImageElement) {
+function photoNormals(image: HTMLImageElement, strength = 2.5) {
   const w = Math.max(1, image.width >> 1);
   const h = Math.max(1, image.height >> 1);
   const c = document.createElement('canvas');
@@ -1293,7 +789,7 @@ function photoNormals(image: HTMLImageElement) {
   for (let i = 0; i < heights.length; i++) {
     heights[i] = (data[i * 4] * 0.3 + data[i * 4 + 1] * 0.59 + data[i * 4 + 2] * 0.11) / 255;
   }
-  const texture = new THREE.CanvasTexture(normalCanvas(heights, w, h, 2.5, false, false));
+  const texture = new THREE.CanvasTexture(normalCanvas(heights, w, h, strength, false, false));
   texture.anisotropy = 8;
   return texture;
 }
@@ -1488,6 +984,73 @@ function addGrain<T extends THREE.MeshStandardMaterial>(material: T, { repeat, t
   return material;
 }
 
+/* ------------------------------------------------------------------ */
+/* Photographed cheese surface                                         */
+/* ------------------------------------------------------------------ */
+
+/** Run more shader edits after whatever a material already does when it compiles. */
+function alsoCompile(material: THREE.Material, key: string, edit: (shader: THREE.WebGLProgramParametersWithUniforms) => void) {
+  const before = material.onBeforeCompile;
+  const beforeKey = material.customProgramCacheKey();
+  material.onBeforeCompile = (shader, renderer) => {
+    before.call(material, shader, renderer);
+    edit(shader);
+  };
+  material.customProgramCacheKey = () => `${beforeKey}|${key}`;
+}
+
+/** How many times the cheese close-up repeats across the pizza. Sets how big its browned patches are. */
+const CHEESE_REPEAT = '1.5';
+/**
+ * How strongly the photo's light and dark patches show, 0 to 1. At full
+ * strength its browning is so busy that it competes with the toppings.
+ */
+const CHEESE_DETAIL = '0.45';
+/** The photo's average colour in linear light, measured from the cropped tile. */
+const CHEESE_AVERAGE = 'vec3( 0.343, 0.213, 0.129 )';
+
+/**
+ * Lay a photographed cheese surface over the painted one. The painted map
+ * still decides where cheese is, by its colour: cheese is yellow, sauce and
+ * grease stains are red. In the cheesy parts the photo
+ * only varies it: lighter and darker where the photo is, so the cheese keeps
+ * its painted colour and picks up real mottling, a little proud and dry where
+ * it browns.
+ */
+function photographCheese(material: THREE.MeshStandardMaterial, photo: THREE.Texture) {
+  alsoCompile(material, 'photo-cheese', (shader) => {
+    shader.uniforms.cheesePhoto = { value: photo };
+    shader.fragmentShader = shader.fragmentShader
+      .replace('#include <common>', `#include <common>\nuniform sampler2D cheesePhoto;`)
+      .replace(
+        '#include <map_fragment>',
+        /* glsl */ `#include <map_fragment>
+        vec2 cheeseUv = ( vMapUv - 0.5 ) * ${CHEESE_REPEAT};
+        vec3 cheeseRaw = texture2D( cheesePhoto, cheeseUv ).rgb;
+        float cheeseLight = dot( cheeseRaw, vec3( 0.3, 0.59, 0.11 ) );
+        float cheesy = smoothstep( 0.3, 0.55, diffuseColor.g / max( diffuseColor.r, 0.001 ) );
+        // The painted map keeps the cheese's overall colour; the photo only varies it,
+        // by how far each of its texels sits from the photo's own average.
+        diffuseColor.rgb *= mix( vec3( 1.0 ), pow( cheeseRaw / ${CHEESE_AVERAGE}, vec3( ${CHEESE_DETAIL} ) ), cheesy );`,
+      )
+      .replace(
+        '#include <roughnessmap_fragment>',
+        `#include <roughnessmap_fragment>\nroughnessFactor = clamp( roughnessFactor + ( 0.25 - cheeseLight ) * 0.5 * cheesy, 0.05, 1.0 );`,
+      )
+      .replace(
+        '#include <normal_fragment_maps>',
+        /* glsl */ `#include <normal_fragment_maps>
+        {
+          // Browned patches are darker and raised, so treat darkness as height.
+          float e = 1.5 / 2048.0;
+          float du = dot( texture2D( cheesePhoto, cheeseUv + vec2( e, 0.0 ) ).rgb, vec3( 0.3, 0.59, 0.11 ) ) - cheeseLight;
+          float dv = dot( texture2D( cheesePhoto, cheeseUv + vec2( 0.0, e ) ).rgb, vec3( 0.3, 0.59, 0.11 ) ) - cheeseLight;
+          normal = normalize( normal + ( tbn[ 0 ] * du + tbn[ 1 ] * dv ) * 1.0 * cheesy );
+        }`,
+      );
+  });
+}
+
 interface Assets {
   geometries: THREE.BufferGeometry[];
   materials: THREE.Material[];
@@ -1499,12 +1062,6 @@ interface PaintedSet {
   seed: number;
   cheese: Painted;
   crust: Painted;
-  pepperoni: Painted;
-  mushroom: Painted;
-  basil: Painted;
-  olive: Painted;
-  jalapeno: Painted;
-  ham: Painted;
 }
 
 /** Painting textures is the slow part of a rebuild, so keep the last set unless the seed changes. */
@@ -1518,12 +1075,6 @@ async function prepaint(seed: number, report: ProgressCallback) {
   const steps: Array<[string, keyof Omit<PaintedSet, 'seed'>, (seed: number) => Painted]> = [
     ['Stretching the dough', 'crust', crustTexture],
     ['Spreading sauce and grating cheese', 'cheese', cheeseTexture],
-    ['Slicing pepperoni', 'pepperoni', pepperoniTexture],
-    ['Chopping mushrooms', 'mushroom', mushroomTexture],
-    ['Picking basil', 'basil', basilTexture],
-    ['Pitting olives', 'olive', oliveTexture],
-    ['Slicing jalapeños', 'jalapeno', jalapenoTexture],
-    ['Dicing ham', 'ham', hamTexture],
   ];
   const partial: Partial<PaintedSet> = { seed };
   for (let i = 0; i < steps.length; i++) {
@@ -1538,50 +1089,33 @@ async function prepaint(seed: number, report: ProgressCallback) {
 function paintedFor(seed: number): PaintedSet {
   if (paintedCache && paintedCache.seed === seed) return paintedCache;
   if (paintedCache) {
-    const { cheese, crust, pepperoni, mushroom, basil, olive, jalapeno, ham } = paintedCache;
-    for (const set of [cheese, crust, pepperoni, mushroom, basil, olive, jalapeno, ham]) {
+    for (const set of [paintedCache.cheese, paintedCache.crust]) {
       set.map.dispose();
       set.normalMap.dispose();
       set.roughnessMap.dispose();
     }
   }
-  paintedCache = {
-    seed,
-    cheese: cheeseTexture(seed),
-    crust: crustTexture(seed),
-    pepperoni: pepperoniTexture(seed),
-    mushroom: mushroomTexture(seed),
-    basil: basilTexture(seed),
-    olive: oliveTexture(seed),
-    jalapeno: jalapenoTexture(seed),
-    ham: hamTexture(seed),
-  };
+  paintedCache = { seed, cheese: cheeseTexture(seed), crust: crustTexture(seed) };
   return paintedCache;
 }
 
-type MaterialParams = THREE.MeshPhysicalMaterialParameters;
-
-/** A topping model: one or more parts, each with its own material. */
+/** A topping model: a photo slice, built lying in the xy plane with its underside at zero. */
 interface Model {
-  parts: Array<{ geometry: THREE.BufferGeometry; material: THREE.Material }>;
-  /** Built lying in the xy plane (slabs and sheets) rather than y-up (lathes). */
-  flat: boolean;
-  /** Height of the model's origin over the cheese, where it differs from the topping's usual. */
-  lift?: number;
+  geometry: THREE.BufferGeometry;
+  material: THREE.Material;
 }
 
 interface BuiltPizza {
   group: THREE.Group;
-  samples: Record<keyof ToppingCounts, THREE.Group>;
+  samples: Partial<Record<Kind, THREE.Group>>;
+  /** Give one nesting level's copy of the pizza its own cheese and crust materials. */
+  dress(pizza: THREE.Object3D): void;
 }
 
-function buildPizza(config: PizzaConfig, assets: Assets, photos: PhotoSet): BuiltPizza {
+function buildPizza(config: PizzaConfig, assets: Assets, photos: PhotoSet, basePhotos: BasePhotos): BuiltPizza {
+  const crustPhoto = basePhotos.crust;
   const rng = mulberry32(config.seed);
   const group = new THREE.Group();
-
-  /** PBR material, physical when a clearcoat is wanted. */
-  const material = (params: MaterialParams, physical = false): THREE.Material =>
-    physical ? new THREE.MeshPhysicalMaterial(params) : new THREE.MeshStandardMaterial(params);
 
   const geo = <T extends THREE.BufferGeometry>(g: T): T => (assets.geometries.push(g), g);
   const mat = <T extends THREE.Material>(m: T): T => (assets.materials.push(m), m);
@@ -1592,19 +1126,18 @@ function buildPizza(config: PizzaConfig, assets: Assets, photos: PhotoSet): Buil
 
   /* Cheese + sauce top, from the hole out under the crust. */
   const cheese = painted.cheese;
-  const cheeseMat = mat(
-    new THREE.MeshStandardMaterial({
-      map: cheese.map,
-      normalMap: cheese.normalMap,
-      roughnessMap: cheese.roughnessMap,
-      roughness: 1,
-      metalness: 0,
-      envMapIntensity: 1.2,
-    }),
-  );
+  // The cheese and crust get their materials per nesting level, in dress() below.
+  const cheeseParams: THREE.MeshStandardMaterialParameters = {
+    normalMap: cheese.normalMap,
+    roughnessMap: cheese.roughnessMap,
+    roughness: 1,
+    metalness: 0,
+    envMapIntensity: 1.2,
+  };
   const topGeo = geo(new THREE.RingGeometry(holeRadius, DISC_RADIUS, 320, 80)); // matches TOP_AROUND x TOP_ACROSS below
   displaceRing(topGeo, cheese);
-  const top = new THREE.Mesh(topGeo, cheeseMat);
+  const top = new THREE.Mesh(topGeo);
+  top.name = 'cheese';
   // Surface height at a point on the pizza, so toppings sit on the cheese.
   // Read back from the ring's own vertices rather than the height map, so it
   // matches the mesh that is actually drawn and toppings neither sink into it
@@ -1653,8 +1186,7 @@ function buildPizza(config: PizzaConfig, assets: Assets, photos: PhotoSet): Buil
    * colour map so every pizza gets marks that match its own toppings.
    */
   const stains = document.createElement('canvas');
-  stains.width = cheese.width;
-  stains.height = cheese.height;
+  stains.width = stains.height = cheese.width;
   const ink = stains.getContext('2d')!;
   ink.drawImage(cheese.canvas, 0, 0);
   const halo = (x: number, z: number, from: number, to: number, colour: string, alpha: number) => {
@@ -1681,14 +1213,14 @@ function buildPizza(config: PizzaConfig, assets: Assets, photos: PhotoSet): Buil
   group.add(top);
 
   /* Base body under the cheese. */
-  const baseMat = mat(material({ color: '#9d6a38', roughness: 0.95 }));
+  const baseMat = mat(new THREE.MeshStandardMaterial({ color: '#9d6a38', roughness: 0.95 }));
   const base = new THREE.Mesh(
     geo(new THREE.CylinderGeometry(DISC_RADIUS, DISC_RADIUS - 0.01, BASE_THICKNESS, 128, 1, true)),
     baseMat,
   );
   base.position.y = -BASE_THICKNESS / 2;
   group.add(base);
-  const bottomMat = mat(material({ color: '#9d6a38', roughness: 0.95, side: THREE.DoubleSide }));
+  const bottomMat = mat(new THREE.MeshStandardMaterial({ color: '#9d6a38', roughness: 0.95, side: THREE.DoubleSide }));
   const bottom = new THREE.Mesh(geo(new THREE.CircleGeometry(DISC_RADIUS, 128)), bottomMat);
   bottom.rotation.x = Math.PI / 2;
   bottom.position.y = -BASE_THICKNESS;
@@ -1697,155 +1229,33 @@ function buildPizza(config: PizzaConfig, assets: Assets, photos: PhotoSet): Buil
   /* Hole wall so the inner pizza sits in a little recess. */
   const wall = new THREE.Mesh(
     geo(new THREE.CylinderGeometry(holeRadius, holeRadius, BASE_THICKNESS, 64, 1, true)),
-    mat(material({ color: '#6e3a16', roughness: 1, side: THREE.BackSide })),
+    mat(new THREE.MeshStandardMaterial({ color: '#6e3a16', roughness: 1, side: THREE.BackSide })),
   );
   wall.position.y = -BASE_THICKNESS / 2;
   group.add(wall);
 
   /* Crust. */
   const crustMaps = painted.crust;
-  const crust = new THREE.Mesh(
-    geo(crustGeometry(config.seed, crustMaps)),
-    mat(
-      material({
-        map: crustMaps.map,
-        normalMap: crustMaps.normalMap,
-        roughnessMap: crustMaps.roughnessMap,
-        roughness: 1,
-        envMapIntensity: 0.5,
-      }),
-    ),
-  );
+  // The photographed crust supplies the colour; the painted maps still give it its bumps, toned down.
+  const crustParams: THREE.MeshStandardMaterialParameters = {
+    map: crustPhoto ?? crustMaps.map,
+    color: crustPhoto ? '#e8e8e8' : '#ffffff',
+    normalMap: crustMaps.normalMap,
+    normalScale: new THREE.Vector2(crustPhoto ? 0.5 : 1, crustPhoto ? 0.5 : 1),
+    roughnessMap: crustMaps.roughnessMap,
+    roughness: 1,
+    envMapIntensity: 0.5,
+  };
+  const crust = new THREE.Mesh(geo(crustGeometry(config.seed, crustMaps)));
+  crust.name = 'crust';
   crust.rotation.x = Math.PI / 2;
   crust.position.y = -0.012;
   crust.castShadow = crust.receiveShadow = true;
   group.add(crust);
 
-  /* Topping assets. */
-  const pepMaps = painted.pepperoni;
-  /** One model per variant of a topping. */
-  const variants = <T,>(make: (variant: number) => T) => Array.from({ length: VARIANTS }, (_, v) => make(v));
+  /* Toppings: the cut-out's outline gives the model its shape, the photo its surface. */
   const pick = <T,>(list: T[]) => list[Math.floor(rng() * list.length)];
-
-  const pepGeos = variants((v) => pepperoniGeometry(config.seed, v));
-  const pepMat = mat(
-    material(
-      {
-        map: pepMaps.map,
-        normalMap: pepMaps.normalMap,
-        roughnessMap: pepMaps.roughnessMap,
-        roughness: 1,
-        envMapIntensity: 1.2,
-        clearcoat: 0.35,
-        clearcoatRoughness: 0.4,
-      },
-      true,
-    ),
-  );
-
-  const mushMaps = painted.mushroom;
-  const mushGeos = variants((v) => mushroomGeometry(config.seed, v));
-  const mushFace = mat(
-    material({
-      map: mushMaps.map,
-      normalMap: mushMaps.normalMap,
-      roughnessMap: mushMaps.roughnessMap,
-      roughness: 1,
-      envMapIntensity: 0.5,
-    }),
-  );
-
-  const basilMaps = painted.basil;
-  const basilGeos = variants((v) => basilGeometry(config.seed, v));
-  const basilMat = mat(
-    material({
-      map: basilMaps.map,
-      normalMap: basilMaps.normalMap,
-      roughnessMap: basilMaps.roughnessMap,
-      roughness: 1,
-      envMapIntensity: 1,
-      side: THREE.DoubleSide,
-    }),
-  );
-
-  const oliveMaps = painted.olive;
-  const oliveGeos = variants((v) => oliveGeometry(config.seed, v));
-  const oliveMat = mat(
-    material(
-      {
-        map: oliveMaps.map,
-        normalMap: oliveMaps.normalMap,
-        roughnessMap: oliveMaps.roughnessMap,
-        roughness: 1,
-        envMapIntensity: 1.2,
-        clearcoat: 0.6,
-        clearcoatRoughness: 0.25,
-      },
-      true,
-    ),
-  );
-
-  const jalMaps = painted.jalapeno;
-  const jalGeos = variants((v) => jalapenoGeometry(config.seed, v));
-  const jalMembrane = mat(material({ color: '#d3dea4', roughness: 0.5, envMapIntensity: 0.8 }));
-  const jalSeed = mat(material({ color: '#e6d49a', roughness: 0.45, envMapIntensity: 0.8 }));
-  const jalMat = mat(
-    material(
-      {
-        map: jalMaps.map,
-        normalMap: jalMaps.normalMap,
-        roughnessMap: jalMaps.roughnessMap,
-        roughness: 1,
-        envMapIntensity: 1.1,
-        clearcoat: 0.5,
-        clearcoatRoughness: 0.3,
-      },
-      true,
-    ),
-  );
-
-  const hamMaps = painted.ham;
-  const hamGeos = variants((v) => hamGeometry(config.seed, v));
-  const hamMat = mat(
-    material({
-      map: hamMaps.map,
-      normalMap: hamMaps.normalMap,
-      roughnessMap: hamMaps.roughnessMap,
-      roughness: 1,
-      envMapIntensity: 0.9,
-    }),
-  );
-
-  // Fine grain on everything, tiled so its cells are about the same real size on each surface.
-  const grained = (m: THREE.Material | THREE.Material[], grain: Grain) => addGrain(m as THREE.MeshStandardMaterial, grain);
-  grained(cheeseMat, { repeat: [30, 30], tint: 0.14, bump: 2 });
-  grained(crust.material, { repeat: [94, 10], tint: 0.22, bump: 6 });
-  grained(pepMat, { repeat: [7, 2.5], tint: 0.2, bump: 4 });
-  grained(mushFace, { repeat: [2.2, 2.2], tint: 0.16, bump: 3.5 });
-  grained(basilMat, { repeat: [2.4, 2.4], tint: 0.12, bump: 2 });
-  grained(oliveMat, { repeat: [3, 1.2], tint: 0.1, bump: 1.5 });
-  grained(jalMat, { repeat: [5, 1], tint: 0.14, bump: 2.5 });
-  grained(hamMat, { repeat: [2.4, 2], tint: 0.14, bump: 3 });
-
-  const single = (geometries: THREE.BufferGeometry[], material: THREE.Material, flat: boolean): Model[] =>
-    geometries.map((geometry) => ({ parts: [{ geometry, material }], flat }));
-  const models: Record<keyof ToppingCounts, Model[]> = {
-    pepperoni: single(pepGeos, pepMat, false),
-    mushroom: single(mushGeos, mushFace, true),
-    basil: single(basilGeos, basilMat, true),
-    olive: single(oliveGeos, oliveMat, false),
-    jalapeno: jalGeos.map((j) => ({
-      parts: [
-        { geometry: j.ring, material: jalMat },
-        { geometry: j.membrane, material: jalMembrane },
-        { geometry: j.seeds, material: jalSeed },
-      ],
-      flat: false,
-    })),
-    ham: single(hamGeos, hamMat, true),
-  };
-
-  // Toppings we have photographs of use those instead: the cut-out's outline for the model, the photo for its surface.
+  const models: Partial<Record<Kind, Model[]>> = {};
   for (const kind of Object.keys(photos) as Kind[]) {
     const sheet = photos[kind]!;
     const look = PHOTO_LOOK[kind];
@@ -1867,10 +1277,8 @@ function buildPizza(config: PizzaConfig, assets: Assets, photos: PhotoSet): Buil
     const across = look.radius / PHOTO_FILL / 0.06;
     addGrain(surface, { repeat: [tiles * across, across], tint: 0.08, bump: look.grain });
     models[kind] = sheet.cutouts.map((cut, i) => ({
-      parts: [{ geometry: photoGeometry(kind, cut, i, tiles, config.seed), material: surface }],
-      flat: true,
-      // Photo slices are built with their underside at zero, so they all rest just proud of the surface.
-      lift: 0.0006,
+      geometry: photoGeometry(kind, cut, i, tiles, config.seed),
+      material: surface,
     }));
   }
 
@@ -1901,7 +1309,7 @@ function buildPizza(config: PizzaConfig, assets: Assets, photos: PhotoSet): Buil
    * one per topping.
    */
   const baked = new Map<THREE.Material, THREE.BufferGeometry[]>();
-  /** Slab and sheet models are built lying in the xy plane; stand them up so y is up like the lathes. */
+  /** Models are built lying in the xy plane; stand them up so y is up. */
   const stand = new THREE.Matrix4().makeRotationX(-Math.PI / 2);
 
   interface Lay {
@@ -1914,9 +1322,9 @@ function buildPizza(config: PizzaConfig, assets: Assets, photos: PhotoSet): Buil
     footprint: number;
     /** 0 rests stiffly on the fitted plane, 1 follows every bump of the cheese. */
     conform: number;
-    /** Height of the model's origin over the surface; negative sinks it into the cheese. */
-    lift: number;
   }
+  /** Slices rest just proud of the cheese so the two never fight for the same depth. */
+  const LIFT = 0.0006;
 
   const lay = (model: Model, o: Lay) => {
     const fit = fitAt(o.x, o.z, o.footprint);
@@ -1924,88 +1332,86 @@ function buildPizza(config: PizzaConfig, assets: Assets, photos: PhotoSet): Buil
     const m = new THREE.Matrix4()
       .makeTranslation(o.x, 0, o.z)
       .multiply(new THREE.Matrix4().makeRotationFromEuler(turn))
-      .multiply(new THREE.Matrix4().makeScale(...o.scale));
-    if (model.flat) m.multiply(stand);
+      .multiply(new THREE.Matrix4().makeScale(...o.scale))
+      .multiply(stand);
 
     const surface = (x: number, z: number) =>
       mix(fit.h + fit.gx * (x - fit.x) + fit.gz * (z - fit.z), heightAt(x, z), o.conform);
     const E = 0.004;
-    for (const part of model.parts) {
-      const g = part.geometry.clone().applyMatrix4(m);
-      const pos = g.attributes.position as THREE.BufferAttribute;
-      const nor = g.attributes.normal as THREE.BufferAttribute;
-      for (let i = 0; i < pos.count; i++) {
-        const x = pos.getX(i);
-        const z = pos.getZ(i);
-        const h = surface(x, z);
-        pos.setY(i, pos.getY(i) + h + (model.lift ?? o.lift));
-        // Adding a height field shears the model, so shear its normals to match.
-        const hx = (surface(x + E, z) - h) / E;
-        const hz = (surface(x, z + E) - h) / E;
-        const ny = nor.getY(i);
-        const nx = nor.getX(i) - hx * ny;
-        const nz = nor.getZ(i) - hz * ny;
-        const len = Math.hypot(nx, ny, nz) || 1;
-        nor.setXYZ(i, nx / len, ny / len, nz / len);
-      }
-      const list = baked.get(part.material);
-      if (list) list.push(g);
-      else baked.set(part.material, [g]);
+    const g = model.geometry.clone().applyMatrix4(m);
+    const pos = g.attributes.position as THREE.BufferAttribute;
+    const nor = g.attributes.normal as THREE.BufferAttribute;
+    for (let i = 0; i < pos.count; i++) {
+      const x = pos.getX(i);
+      const z = pos.getZ(i);
+      const h = surface(x, z);
+      pos.setY(i, pos.getY(i) + h + LIFT);
+      // Adding a height field shears the model, so shear its normals to match.
+      const hx = (surface(x + E, z) - h) / E;
+      const hz = (surface(x, z + E) - h) / E;
+      const ny = nor.getY(i);
+      const nx = nor.getX(i) - hx * ny;
+      const nz = nor.getZ(i) - hz * ny;
+      const len = Math.hypot(nx, ny, nz) || 1;
+      nor.setXYZ(i, nx / len, ny / len, nz / len);
     }
+    const list = baked.get(model.material);
+    if (list) list.push(g);
+    else baked.set(model.material, [g]);
   };
 
-  const scatter = (count: number, footprint: number, make: (x: number, z: number) => void) => {
-    for (let i = 0; i < count; i++) {
+  /** Place up to the configured number of one topping. A topping whose photos failed to load is left off. */
+  const scatter = (kind: Kind, footprint: number, make: (model: Model, x: number, z: number) => void) => {
+    const variants = models[kind];
+    if (!variants) return;
+    for (let i = 0; i < config.toppings[kind]; i++) {
       const pos = place(footprint);
-      if (pos) make(pos.x, pos.z);
+      if (pos) make(pick(variants), pos.x, pos.z);
     }
   };
 
-  const t = config.toppings;
-  scatter(t.pepperoni, 0.07, (x, z) => {
+  scatter('pepperoni', 0.07, (model, x, z) => {
     const s = 0.8 + rng() * 0.45;
-    lay(pick(models.pepperoni), {
+    lay(model, {
       x,
       z,
       scale: [s, 0.85 + rng() * 0.35, s * (0.92 + rng() * 0.16)],
       lean: 0.06,
       footprint: 0.066 * s,
       conform: 0.85,
-      lift: 0.0006,
     });
     stain(x, z, 0.068 * s, 0.5, 0.5);
   });
-  scatter(t.mushroom, 0.075, (x, z) => {
+  scatter('mushroom', 0.075, (model, x, z) => {
     const s = 0.66 + rng() * 0.3;
-    lay(pick(models.mushroom), { x, z, scale: [s, s, s], lean: 0.12, footprint: 0.05 * s, conform: 0.5, lift: 0.0004 });
+    lay(model, { x, z, scale: [s, s, s], lean: 0.12, footprint: 0.05 * s, conform: 0.5 });
     stain(x, z, 0.056 * s, 0.12, 0.45);
   });
-  scatter(t.basil, 0.07, (x, z) => {
+  scatter('basil', 0.07, (model, x, z) => {
     const s = 0.75 + rng() * 0.35;
-    lay(pick(models.basil), {
+    lay(model, {
       x,
       z,
       scale: [s * (0.85 + rng() * 0.3), s * (0.7 + rng() * 0.8), s],
       lean: 0.1,
       footprint: 0.05 * s,
       conform: 0.75,
-      lift: 0.0035,
     });
     stain(x, z, 0.05 * s, 0, 0.4);
   });
-  scatter(t.olive, 0.045, (x, z) => {
+  scatter('olive', 0.045, (model, x, z) => {
     const s = 0.85 + rng() * 0.3;
-    lay(pick(models.olive), { x, z, scale: [s, 1, s], lean: 0.16, footprint: 0.04 * s, conform: 0.35, lift: 0.0072 });
+    lay(model, { x, z, scale: [s * (0.9 + rng() * 0.2), 1, s], lean: 0.16, footprint: 0.04 * s, conform: 0.35 });
     stain(x, z, 0.04 * s, 0.15, 0.5);
   });
-  scatter(t.jalapeno, 0.055, (x, z) => {
+  scatter('jalapeno', 0.055, (model, x, z) => {
     const s = 0.8 + rng() * 0.35;
-    lay(pick(models.jalapeno), { x, z, scale: [s, 1, s], lean: 0.14, footprint: 0.05 * s, conform: 0.4, lift: 0.005 });
+    lay(model, { x, z, scale: [s, 1, s], lean: 0.14, footprint: 0.05 * s, conform: 0.4 });
     stain(x, z, 0.05 * s, 0.1, 0.45);
   });
-  scatter(t.ham, 0.065, (x, z) => {
+  scatter('ham', 0.065, (model, x, z) => {
     const s = 0.75 + rng() * 0.4;
-    lay(pick(models.ham), { x, z, scale: [s, s, s], lean: 0.08, footprint: 0.055 * s, conform: 0.9, lift: 0.0005 });
+    lay(model, { x, z, scale: [s, s, s], lean: 0.08, footprint: 0.055 * s, conform: 0.9 });
     stain(x, z, 0.056 * s, 0.25, 0.45);
   });
 
@@ -2016,26 +1422,35 @@ function buildPizza(config: PizzaConfig, assets: Assets, photos: PhotoSet): Buil
   }
 
   // One of each topping on its own, for the options panel thumbnails.
-  const samples = {} as Record<keyof ToppingCounts, THREE.Group>;
-  for (const kind of Object.keys(models) as Array<keyof ToppingCounts>) {
-    const model = models[kind][0];
+  const samples: BuiltPizza['samples'] = {};
+  for (const kind of Object.keys(models) as Kind[]) {
+    const model = models[kind]![0];
     const sample = new THREE.Group();
-    for (const part of model.parts) {
-      const g = geo(part.geometry.clone());
-      if (model.flat) g.applyMatrix4(stand);
-      sample.add(new THREE.Mesh(g, part.material));
-    }
+    sample.add(new THREE.Mesh(geo(model.geometry.clone().applyMatrix4(stand)), model.material));
     samples[kind] = sample;
   }
 
-  // Swap the plain cheese map for the stained copy.
+  // The cheese is drawn with the stained copy of its colour map.
   const stained = new THREE.CanvasTexture(stains);
   stained.colorSpace = THREE.SRGBColorSpace;
   stained.anisotropy = 8;
   assets.textures.push(stained);
-  cheeseMat.map = stained;
 
-  return { group, samples };
+  const dress = (pizza: THREE.Object3D) => {
+    const cheeseMat = mat(new THREE.MeshStandardMaterial({ ...cheeseParams, map: stained }));
+    addGrain(cheeseMat, { repeat: [30, 30], tint: 0.14, bump: 2 });
+    if (basePhotos.cheeseDetail) {
+      // The painted bubbles would sit at odds with the photographed ones.
+      cheeseMat.normalScale.setScalar(0.45);
+      photographCheese(cheeseMat, basePhotos.cheeseDetail);
+    }
+    const crustMat = mat(new THREE.MeshStandardMaterial(crustParams));
+    addGrain(crustMat, { repeat: [94, 10], tint: 0.22, bump: 6 });
+    (pizza.getObjectByName('cheese') as THREE.Mesh).material = cheeseMat;
+    (pizza.getObjectByName('crust') as THREE.Mesh).material = crustMat;
+  };
+
+  return { group, samples, dress };
 }
 
 /* ------------------------------------------------------------------ */
@@ -2169,13 +1584,15 @@ export async function createPizza(
     disposeAssets();
     levelGroups = [];
 
-    const built = buildPizza(config, assets, photos);
+    const built = buildPizza(config, assets, photos, base);
     const pizza = built.group;
     samples = built.samples;
     let parent: THREE.Object3D = root;
     for (let i = 0; i < config.levels; i++) {
       const level = new THREE.Group();
-      level.add(i === 0 ? pizza : pizza.clone());
+      const copy = i === 0 ? pizza : pizza.clone();
+      built.dress(copy);
+      level.add(copy);
       if (i > 0) {
         level.scale.setScalar(config.ratio);
         level.position.y = LEVEL_DROP; // sit just inside the recess
@@ -2187,7 +1604,7 @@ export async function createPizza(
   }
 
   await prepaint(config.seed, onProgress);
-  const photos = await loadPhotos();
+  const [photos, base] = await Promise.all([loadPhotos(), loadBasePhotos()]);
   rebuild();
 
   /* Camera framing */
@@ -2382,6 +1799,8 @@ export async function createPizza(
         sheet.texture.dispose();
         sheet.normalMap.dispose();
       }
+      base.crust?.dispose();
+      base.cheeseDetail?.dispose();
       grainTexture?.dispose();
       grainTexture = null;
       pipeline.dispose();
