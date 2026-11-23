@@ -4,8 +4,20 @@ import photos from '../scripts/topping-photos.json';
 
 export interface Props {
   cover?: string;
+  /** The cover's width and height in pixels; covers are square. */
+  coverSize?: number;
+  /** What the cover shows, for people who can't see it. */
+  coverAlt?: string;
   description?: string;
   title?: string;
+  /** The page's address, for its canonical link. */
+  path?: string;
+  /** What schema.org calls this page, such as AboutPage. */
+  pageType?: string;
+  /** Start fetching the pizza's pictures early. Only the page that draws the pizza wants this. */
+  pizza?: boolean;
+  /** Keep the page out of search results, as for the not-found page. */
+  noindex?: boolean;
 }
 
 const defaultCover = '/cover.jpg';
@@ -27,7 +39,7 @@ const author = {
   url: 'https://wrux.com',
   sameAs: ['https://github.com/wrux'],
 };
-const structuredData = {
+const structuredData: { '@context': string; '@graph': Record<string, unknown>[] } = {
   '@context': 'https://schema.org',
   '@graph': [
     {
@@ -58,16 +70,31 @@ const structuredData = {
     author,
   ],
 };
-const currentPath = Astro.url.pathname;
-
 // Every picture the pizza is built from, so the browser can fetch them while the script is still on its way.
 const textures = [photos.crust, photos.cheeseDetail, ...Object.values(photos.toppings).map((sheet) => sheet.file)].filter(Boolean);
 
 const {
   cover = defaultCover,
+  coverSize = 1080,
   description = defaultDescription,
   title = defaultTitle,
+  path = '/',
+  pageType = 'WebPage',
+  pizza = false,
+  noindex = false,
+  coverAlt = 'A pepperoni and mushroom pizza sitting on a bigger pizza, with a smaller pizza at its centre',
 } = Astro.props;
+
+const pageUrl = `${siteUrl}${path}`;
+structuredData['@graph'].push({
+  '@type': pageType,
+  '@id': `${pageUrl}#page`,
+  url: pageUrl,
+  name: title,
+  description,
+  isPartOf: { '@id': `${siteUrl}/#website` },
+  ...(pageType === 'AboutPage' ? { about: { '@id': `${siteUrl}/#app` } } : {}),
+});
 ---
 
 <!doctype html>
@@ -79,11 +106,10 @@ const {
     <title>{title}</title>
     <meta name="description" content={description} />
     <meta name="author" content="Callum Bonnyman" />
-    <meta name="robots" content="index,follow" />
-    <meta name="googlebot" content="index,follow" />
+    <meta name="robots" content={noindex ? 'noindex' : 'index,follow'} />
     <meta name="google" content="nositelinkssearchbox" />
     <meta name="format-detection" content="telephone=no" />
-    <link rel="canonical" href={`${siteUrl}${currentPath}`} />
+    {!noindex && <link rel="canonical" href={pageUrl} />}
     <link rel="author" href="/humans.txt" />
 
     <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
@@ -98,20 +124,20 @@ const {
 
     <meta property="og:type" content="website" />
     <meta property="og:site_name" content="Perpetual Pizza" />
-    <meta property="og:image:width" content="1080" />
-    <meta property="og:image:height" content="1080" />
+    <meta property="og:image:width" content={String(coverSize)} />
+    <meta property="og:image:height" content={String(coverSize)} />
     <meta property="og:title" content={title} />
     <meta property="og:description" content={description} />
-    <meta property="og:url" content={`${siteUrl}${currentPath}`} />
+    <meta property="og:url" content={pageUrl} />
     <meta property="og:image" content={new URL(cover, siteUrl).href} />
-    <meta property="og:image:alt" content="A pepperoni and mushroom pizza sitting on a bigger pizza, with a smaller pizza at its centre" />
+    <meta property="og:image:alt" content={coverAlt} />
     <meta name="twitter:card" content="summary_large_image" />
     <script type="application/ld+json" set:html={JSON.stringify(structuredData)} />
 
-    {textures.map((href) => <link rel="preload" as="image" type="image/avif" href={href} />)}
-    <link rel="preload" as="image" href="/pizza/env.webp" />
+    {pizza && textures.map((href) => <link rel="preload" as="image" type="image/avif" href={href} />)}
+    {pizza && <link rel="preload" as="image" href="/pizza/env.webp" />}
   </head>
-  <body>
+  <body class:list={{ page: !pizza }}>
     <LogoSprite />
     <slot />
   </body>
@@ -128,7 +154,8 @@ const {
     }
   }
 
-  document.addEventListener(
+  // Only the pizza page has a fullscreen button, and only there does F mean fullscreen.
+  if (fullscreenButton) document.addEventListener(
     'keydown',
     (event) => {
       const target = event.target as HTMLElement | null;
@@ -186,5 +213,12 @@ const {
     color: #fff;
     font: 1em/1.6 system-ui, sans-serif;
     -webkit-font-smoothing: antialiased;
+  }
+
+  /* Pages of words, rather than the pizza, scroll like any other page. */
+  body.page {
+    width: auto;
+    height: auto;
+    overflow: visible;
   }
 </style>

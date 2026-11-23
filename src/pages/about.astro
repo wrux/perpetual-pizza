@@ -1,0 +1,820 @@
+---
+import Layout from '../layouts/Layout.astro';
+import Logo from '../components/Logo.astro';
+import { EFFECTS, effectLabels } from '../scripts/effects';
+
+const title = 'About Perpetual Pizza | The never ending digital pizza';
+const description =
+  'What Perpetual Pizza is, how the endless zoom works, the story from a looping GIF to a live 3D pizza, and who made it: Callum Bonnyman (wrux).';
+
+// The six pizzas of Perpetual Pizza 2.0, each once its own looping video.
+const pizzas2021 = [
+  'Pepperoni and mushroom',
+  'Jalapeño and crumbled meat',
+  'Crumbled white cheese',
+  'Tomato and basil',
+  'Ham and pineapple',
+  'Black olives and ham',
+];
+
+const looks = EFFECTS.map((e) => effectLabels[e]);
+
+// The live pizza, captured from the site.
+const heroAlt =
+  'A pizza with pepperoni, ham, mushrooms, black olives, jalapeños and basil, drawn in 3D, with a smaller copy of itself at its centre';
+
+---
+
+<Layout title={title} description={description} path="/about" pageType="AboutPage" cover="/about/pizza.jpg" coverSize={800} coverAlt={heroAlt}>
+  <div class="glow" aria-hidden="true"></div>
+
+  <header class="top">
+    <a class="home" href="/">
+      <Logo />
+      <span>Perpetual Pizza</span>
+    </a>
+    <a class="button small" href="/">Watch the pizza</a>
+  </header>
+
+  <main class="about-page">
+    <section class="hero">
+      <div class="hero-text">
+        <h1>The pizza that never ends</h1>
+        <p class="lead">
+          Perpetual Pizza is a never ending digital pizza. The centre of every pizza is a smaller pizza, whose centre is
+          a smaller pizza again, and the camera zooms in forever. It's a free web toy at
+          <a href="/">perpetual.pizza</a>, made by Callum Bonnyman (wrux).
+        </p>
+        <p class="actions">
+          <a class="button" href="/">Watch the pizza</a>
+          <a class="button ghost" href="#how">How it works</a>
+        </p>
+      </div>
+
+      <img
+        class="hero-pizza"
+        src="/about/pizza.jpg"
+        width="800"
+        height="800"
+        fetchpriority="high"
+        alt={heroAlt}
+      />
+    </section>
+
+    <dl class="facts">
+      <div><dt>What it is</dt><dd>An endless, zooming 3D pizza you can customise</dd></div>
+      <div><dt>Made by</dt><dd><a href="https://wrux.com" rel="author">Callum Bonnyman (wrux)</a></dd></div>
+      <div>
+        <dt>Inspired by</dt><dd>A looping pizza animation by <a href="https://www.sheepfilms.co.uk/">Sheep Films</a></dd>
+      </div>
+      <div><dt>Built with</dt><dd>WebGL2, drawn live in your browser</dd></div>
+      <div><dt>Works on</dt><dd>Phones, tablets and computers, in any modern browser</dd></div>
+      <div><dt>Source code</dt><dd><a href="https://github.com/wrux/perpetual-pizza">wrux/perpetual-pizza</a></dd></div>
+    </dl>
+
+    <section class="block" id="how">
+      <div class="side">
+        <h2>How the endless zoom works</h2>
+      </div>
+      <div class="body">
+        <p>
+          The trick is an old one, sometimes called the Droste effect: a picture that contains a smaller copy of itself.
+        </p>
+        <ol class="steps">
+          <li>
+            <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9" /><circle cx="12" cy="12" r="4.5" /><circle cx="12" cy="12" r="1" /></svg>
+            <b>A pizza inside a pizza</b>
+            <span>Each pizza has another, identical pizza sitting at its centre.</span>
+          </li>
+          <li>
+            <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5" /><path d="M15.5 15.5 21 21M10.5 8v5M8 10.5h5" /></svg>
+            <b>The camera moves in</b>
+            <span>The small pizza grows until it's exactly the size the big one was when the zoom began.</span>
+          </li>
+          <li>
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 12a8 8 0 1 1-2.34-5.66" /><path d="M20 4v5h-5" /></svg>
+            <b>An invisible reset</b>
+            <span>The scene quietly jumps back to the start. Every level is the same, so nobody can tell.</span>
+          </li>
+        </ol>
+        <p>
+          Nothing is a video. The crust, cheese and toppings are built in 3D and painted from photographs, then drawn
+          frame by frame in your browser with WebGL2.
+        </p>
+      </div>
+    </section>
+
+    <section class="block">
+      <div class="side">
+        <h2>Make your own pizza</h2>
+      </div>
+      <div class="body">
+        <p>Open <b>Customise</b> on the <a href="/">pizza page</a> and change any of these.</p>
+        <ul class="tiles">
+          <li><b>Toppings</b><span>Pepperoni, mushroom, basil, olives, jalapeño and ham, as many or as few as you like.</span></li>
+          <li><b>Motion</b><span>How fast it zooms, how much it spins, and whether it zooms in or out.</span></li>
+          <li><b>Camera</b><span>The viewing angle and the lens.</span></li>
+          <li>
+            <b>Look</b>
+            <span class="chips">{looks.map((l) => <span>{l}</span>)}</span>
+          </li>
+        </ul>
+        <p>
+          Every setting is saved in the page's address, so the share button copies a link to exactly your pizza. Press
+          <kbd>F</kbd> for fullscreen.
+        </p>
+      </div>
+    </section>
+
+    <section class="block">
+      <div class="side">
+        <h2>The story</h2>
+      </div>
+      <div class="body">
+        <ol class="timeline">
+          <li>
+            <span class="when">The beginning</span>
+            <p>
+              The idea came from a looping pizza animation by <a href="https://www.sheepfilms.co.uk/">Sheep Films</a>.
+              When the .pizza web domain launched, Callum made perpetual.pizza: a page that played the loop endlessly,
+              with credit to Sheep Films.
+            </p>
+          </li>
+          <li>
+            <span class="when">2021</span>
+            <p><b>Perpetual Pizza 2.0</b>: six new pizzas, each a seamless looping video with its own page.</p>
+          </li>
+          <li>
+            <span class="when">2023</span>
+            <p>The site was rebuilt with Astro.</p>
+          </li>
+          <li>
+            <span class="when">2026</span>
+            <p>
+              The videos were replaced by a super-lightweight pizza engine that Callum wrote in WebGL2. The pizza is
+              drawn live in the browser, so everything about it can change: the toppings, speed, spin, camera and look.
+              The whole first visit is about 235 KB.
+            </p>
+          </li>
+        </ol>
+      </div>
+    </section>
+
+    <figure class="gallery">
+      <ul aria-label="The six pizzas of Perpetual Pizza 2.0">
+        {
+          pizzas2021.map((name, i) => (
+            <li>
+              <img
+                src={`/about/2021-0${i + 1}.webp`}
+                width="480"
+                height="480"
+                loading="lazy"
+                decoding="async"
+                alt={`${name} pizza from 2021, sitting on a bigger pizza with a smaller pizza at its centre`}
+              />
+              <span>{name}</span>
+            </li>
+          ))
+        }
+      </ul>
+      <figcaption>The six pizzas of Perpetual Pizza 2.0, from 2021</figcaption>
+    </figure>
+
+    <section class="block">
+      <div class="side">
+        <h2>Questions</h2>
+      </div>
+      <div class="body faq">
+        <details open>
+          <summary>Does it really never end?</summary>
+          <p>Yes. The zoom loops seamlessly, so you can leave it running for as long as you like.</p>
+        </details>
+        <details>
+          <summary>Can I order this pizza?</summary>
+          <p>No, it's a digital pizza only. It may still make you want to order a real one.</p>
+        </details>
+        <details>
+          <summary>Why doesn't the pizza show up?</summary>
+          <p>
+            Your browser needs JavaScript and WebGL2, which every current version of Chrome, Edge, Firefox and Safari
+            has. Turning on hardware acceleration in your browser's settings usually helps.
+          </p>
+        </details>
+        <details>
+          <summary>Can I use the code?</summary>
+          <p>
+            The <a href="https://github.com/wrux/perpetual-pizza">source code is on GitHub</a>, and you're welcome to
+            fork it or borrow from it.
+          </p>
+        </details>
+      </div>
+    </section>
+
+    <section class="block">
+      <div class="side">
+        <h2>Who made it</h2>
+      </div>
+      <div class="body">
+        <p>
+          Perpetual Pizza is made by Callum Bonnyman, also known as <b>wrux</b>. There's more of Callum's work at
+          wrux.com and on GitHub.
+        </p>
+        <p class="actions">
+          <a class="button ghost" href="https://wrux.com" rel="author">wrux.com</a>
+          <a class="button ghost" href="https://github.com/wrux">GitHub</a>
+        </p>
+      </div>
+    </section>
+
+    <section class="finale">
+      <Logo />
+      <h2>Ready for a slice that never ends?</h2>
+      <a class="button" href="/">Watch the pizza</a>
+    </section>
+  </main>
+
+  <footer class="foot">
+    <span>Perpetual Pizza by <a href="https://wrux.com" rel="author">wrux</a></span>
+    <a href="https://github.com/wrux/perpetual-pizza">Source on GitHub</a>
+  </footer>
+</Layout>
+
+<style>
+  .about-page,
+  .top,
+  .foot {
+    --crust: #f3bf74;
+    --text: #fffd;
+    --muted: #fff9;
+    --line: #ffffff1a;
+    --round: ui-rounded, 'SF Pro Rounded', system-ui, sans-serif;
+  }
+
+  /* A warm light over the top of the page, as if from the oven. */
+  .glow {
+    position: absolute;
+    inset: 0 0 auto;
+    z-index: -1;
+    height: 52rem;
+    background:
+      radial-gradient(60% 50% at 75% 18%, #d0000038, transparent 70%),
+      radial-gradient(50% 45% at 15% 0%, #e7a54f1f, transparent 70%);
+    pointer-events: none;
+  }
+
+  /* ---- Header ---------------------------------------------------------- */
+  .top {
+    position: sticky;
+    top: 0;
+    z-index: 5;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 0.85rem max(1rem, (100vw - 68rem) / 2);
+    background: #140802b3;
+    -webkit-backdrop-filter: blur(16px) saturate(1.4);
+    backdrop-filter: blur(16px) saturate(1.4);
+    border-bottom: 1px solid #ffffff0d;
+  }
+
+  .home {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    color: #fff;
+    font-family: var(--round);
+    font-weight: 800;
+    white-space: nowrap;
+    text-decoration: none;
+  }
+
+  .home :global(svg) {
+    flex: none;
+    width: 2rem;
+  }
+
+  /* ---- Buttons ----------------------------------------------------------- */
+  .button {
+    display: inline-flex;
+    align-items: center;
+    padding: 0.7rem 1.35rem;
+    border: 1px solid transparent;
+    border-radius: 5rem;
+    background: var(--primary);
+    box-shadow: 0 6px 24px #d0000059;
+    color: #fff;
+    font-weight: 700;
+    text-decoration: none;
+    white-space: nowrap;
+    transition:
+      transform 0.2s var(--ease),
+      background 0.2s;
+  }
+
+  .button:hover {
+    background: #e41212;
+    transform: translateY(-1px);
+  }
+
+  .button.small {
+    padding: 0.45rem 1rem;
+    font-size: 0.9rem;
+    box-shadow: none;
+  }
+
+  .button.ghost {
+    border-color: #ffffff2e;
+    background: #ffffff0d;
+    box-shadow: none;
+  }
+
+  .button.ghost:hover {
+    background: #ffffff1f;
+  }
+
+  .actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+  }
+
+  /* ---- Page ------------------------------------------------------------ */
+  .about-page {
+    max-width: 68rem;
+    margin: 0 auto;
+    padding: 0 1rem 2rem;
+    color: var(--text);
+    line-height: 1.65;
+  }
+
+  a {
+    color: #fff;
+    text-decoration-color: #fff6;
+    text-underline-offset: 0.22em;
+  }
+
+  a:hover {
+    text-decoration-color: var(--crust);
+  }
+
+  p {
+    margin: 0 0 1rem;
+  }
+
+  h1,
+  h2 {
+    font-family: var(--round);
+    color: #fff;
+    letter-spacing: -0.02em;
+  }
+
+  /* ---- Hero ------------------------------------------------------------ */
+  .hero {
+    display: grid;
+    grid-template-columns: 1.15fr 1fr;
+    align-items: center;
+    gap: 3rem;
+    padding: 4.5rem 0 3.5rem;
+  }
+
+  h1 {
+    margin: 0 0 1.25rem;
+    font-size: clamp(2.6rem, 6.5vw, 4.5rem);
+    font-weight: 900;
+    line-height: 1;
+  }
+
+  .lead {
+    max-width: 34rem;
+    margin-bottom: 1.75rem;
+    font-size: 1.15rem;
+    color: #fffe;
+  }
+
+  /* A still of the live pizza, under a warm light. */
+  .hero-pizza {
+    justify-self: center;
+    width: min(100%, 28rem);
+    height: auto;
+    border-radius: 2rem;
+    box-shadow:
+      0 0 0 1px #ffffff1a,
+      0 0 0 12px #ffffff08,
+      0 30px 80px #d0000040,
+      0 20px 50px #0008;
+  }
+
+  /* ---- Facts ----------------------------------------------------------- */
+  .facts {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    margin: 0 0 2rem;
+    border-top: 1px solid var(--line);
+  }
+
+  .facts div {
+    padding: 1.1rem 1.25rem 1.2rem 0;
+    border-bottom: 1px solid var(--line);
+  }
+
+  .facts div:not(:nth-child(3n + 1)) {
+    padding-left: 1.25rem;
+    border-left: 1px solid var(--line);
+  }
+
+  dt {
+    margin-bottom: 0.25rem;
+    color: var(--crust);
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+  }
+
+  dd {
+    margin: 0;
+    color: #fff;
+    line-height: 1.45;
+  }
+
+  /* ---- Sections -------------------------------------------------------- */
+  .block {
+    display: grid;
+    grid-template-columns: 17rem 1fr;
+    gap: 2.5rem;
+    padding: 4rem 0;
+    border-bottom: 1px solid var(--line);
+    scroll-margin-top: 4rem;
+  }
+
+  .side {
+    align-self: start;
+    position: sticky;
+    top: 6rem;
+  }
+
+  h2 {
+    margin: 0;
+    font-size: clamp(1.6rem, 3vw, 2.1rem);
+    font-weight: 800;
+    line-height: 1.1;
+  }
+
+  .body {
+    max-width: 40rem;
+    font-size: 1.05rem;
+  }
+
+  .body > :last-child {
+    margin-bottom: 0;
+  }
+
+  kbd {
+    padding: 0.05em 0.45em;
+    border: 1px solid #fff4;
+    border-bottom-width: 2px;
+    border-radius: 0.35em;
+    font: inherit;
+    font-size: 0.85em;
+    font-weight: 600;
+  }
+
+  /* How it works, in three steps. */
+  .steps {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 0.75rem;
+    margin: 1.5rem 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .steps li,
+  .tiles li {
+    display: grid;
+    align-content: start;
+    gap: 0.35rem;
+    padding: 1.1rem;
+    border: 1px solid var(--line);
+    border-radius: 1rem;
+    background: #ffffff08;
+    font-size: 0.95rem;
+    line-height: 1.5;
+  }
+
+  .steps svg {
+    width: 2.25rem;
+    height: 2.25rem;
+    margin-bottom: 0.4rem;
+    padding: 0.45rem;
+    border-radius: 0.7rem;
+    background: #d0000026;
+    fill: none;
+    stroke: var(--crust);
+    stroke-width: 2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+  }
+
+  .steps b,
+  .tiles b {
+    color: #fff;
+  }
+
+  .steps span,
+  .tiles span {
+    color: var(--muted);
+  }
+
+  /* The four things to change, two by two. */
+  .tiles {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 0.75rem;
+    margin: 1.5rem 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .tiles .chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.35rem;
+    margin-top: 0.15rem;
+  }
+
+  .chips span {
+    padding: 0.15rem 0.6rem;
+    border-radius: 5rem;
+    background: #ffffff14;
+    color: #fffd;
+    font-size: 0.8rem;
+    font-weight: 600;
+  }
+
+  /* The story, as a line through the years. */
+  .timeline {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .timeline li {
+    position: relative;
+    padding: 0 0 1.75rem 2rem;
+    border-left: 2px solid #ffffff1f;
+  }
+
+  .timeline li:last-child {
+    padding-bottom: 0;
+    border-left-color: transparent;
+  }
+
+  .timeline li::before {
+    content: '';
+    position: absolute;
+    top: 0.3rem;
+    left: -0.5rem;
+    width: 0.9rem;
+    height: 0.9rem;
+    border: 3px solid #140802;
+    border-radius: 50%;
+    background: var(--crust);
+    box-shadow: 0 0 0 1px var(--crust);
+  }
+
+  .timeline li:last-child::before {
+    background: var(--primary);
+    box-shadow:
+      0 0 0 1px var(--primary),
+      0 0 16px var(--primary);
+  }
+
+  .when {
+    display: block;
+    margin-bottom: 0.2rem;
+    color: #fff;
+    font-family: var(--round);
+    font-size: 1.15rem;
+    font-weight: 800;
+  }
+
+  .timeline p {
+    margin: 0;
+  }
+
+  /* The 2021 pizzas, wider than the text, scrolling sideways on small screens. */
+  .gallery {
+    margin: 0;
+    padding: 3rem 0 4rem;
+    border-bottom: 1px solid var(--line);
+  }
+
+  .gallery ul {
+    display: grid;
+    grid-template-columns: repeat(6, 1fr);
+    gap: 0.9rem;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .gallery img {
+    display: block;
+    width: 100%;
+    height: auto;
+    border-radius: 50%;
+    box-shadow:
+      0 0 0 1px #ffffff1a,
+      0 14px 30px #0007;
+    transition: transform 0.35s var(--ease);
+  }
+
+  .gallery li:hover img {
+    transform: scale(1.05) rotate(-4deg);
+  }
+
+  .gallery li span {
+    display: block;
+    margin-top: 0.7rem;
+    color: var(--muted);
+    font-size: 0.8rem;
+    line-height: 1.35;
+    text-align: center;
+  }
+
+  figcaption {
+    margin-top: 1.5rem;
+    color: var(--muted);
+    font-size: 0.85rem;
+    text-align: center;
+  }
+
+  /* Questions that fold open. */
+  .faq details {
+    border-bottom: 1px solid var(--line);
+  }
+
+  .faq details:first-child {
+    border-top: 1px solid var(--line);
+  }
+
+  .faq summary {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 1.1rem 0;
+    color: #fff;
+    font-weight: 700;
+    cursor: pointer;
+    list-style: none;
+  }
+
+  .faq summary::-webkit-details-marker {
+    display: none;
+  }
+
+  .faq summary::after {
+    content: '+';
+    flex: none;
+    display: grid;
+    place-items: center;
+    width: 1.75rem;
+    height: 1.75rem;
+    border-radius: 50%;
+    background: #ffffff12;
+    color: var(--crust);
+    font-size: 1.2rem;
+    font-weight: 500;
+    line-height: 1;
+    transition: transform 0.25s var(--ease);
+  }
+
+  .faq details[open] summary::after {
+    transform: rotate(45deg);
+  }
+
+  .faq details p {
+    margin: -0.25rem 0 1.25rem;
+    color: var(--muted);
+  }
+
+  /* ---- Closing --------------------------------------------------------- */
+  .finale {
+    display: grid;
+    justify-items: center;
+    gap: 1.25rem;
+    margin: 4rem 0 2rem;
+    padding: 3.5rem 1.5rem;
+    border: 1px solid var(--line);
+    border-radius: 2rem;
+    background:
+      radial-gradient(70% 90% at 50% 0%, #d0000033, transparent 70%),
+      #ffffff06;
+    text-align: center;
+  }
+
+  .finale :global(svg) {
+    width: 4.5rem;
+  }
+
+  .finale h2 {
+    max-width: 22rem;
+  }
+
+  .foot {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    gap: 0.5rem 1.5rem;
+    max-width: 68rem;
+    margin: 0 auto;
+    padding: 1.5rem 1rem 2.5rem;
+    color: var(--muted);
+    font-size: 0.85rem;
+  }
+
+  .foot a {
+    color: var(--muted);
+  }
+
+  /* ---- Smaller screens ------------------------------------------------- */
+  @media (max-width: 860px) {
+    .hero {
+      grid-template-columns: 1fr;
+      gap: 2.5rem;
+      padding: 2.5rem 0 2.5rem;
+    }
+
+    .hero-pizza {
+      grid-row: 1;
+      width: min(72vw, 20rem);
+    }
+
+    .block {
+      grid-template-columns: 1fr;
+      gap: 1.25rem;
+      padding: 3rem 0;
+    }
+
+    .side {
+      position: static;
+    }
+
+    .steps {
+      grid-template-columns: 1fr;
+    }
+
+    .facts {
+      grid-template-columns: repeat(2, 1fr);
+    }
+
+    .facts div:not(:nth-child(3n + 1)) {
+      padding-left: 0;
+      border-left: 0;
+    }
+
+    .facts div:nth-child(even) {
+      padding-left: 1rem;
+      border-left: 1px solid var(--line);
+    }
+
+    /* The pizzas scroll sideways rather than shrinking to crumbs. */
+    .gallery ul {
+      display: flex;
+      gap: 1rem;
+      margin: 0 -1rem;
+      padding: 0.5rem 1rem 1rem;
+      overflow-x: auto;
+      scroll-snap-type: x mandatory;
+      scroll-padding-inline: 1rem;
+      scrollbar-width: none;
+    }
+
+    .gallery li {
+      flex: none;
+      width: 9.5rem;
+      scroll-snap-align: start;
+    }
+  }
+
+  @media (max-width: 520px) {
+    .tiles {
+      grid-template-columns: 1fr;
+    }
+
+    dd {
+      font-size: 0.92rem;
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .button,
+    .gallery img {
+      transition: none;
+    }
+  }
+</style>

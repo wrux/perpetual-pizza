@@ -20,7 +20,12 @@ import Options from './Options.astro';
     if (caption) caption.textContent = text;
     if (bar) bar.style.transform = `scaleX(${fraction})`;
   };
-  const pizza = await createPizza(canvas, optionsFromUrl(), progress);
+  // If the pizza can't be drawn (no WebGL2, or a graphics error), swap the loader for a few words about the site.
+  const pizza = await createPizza(canvas, optionsFromUrl(), progress).catch((error: unknown) => {
+    loader?.classList.add('failed');
+    loader?.removeAttribute('aria-live');
+    throw error;
+  });
   progress('Plating up', 0.9);
   await initPanel(pizza);
   progress('Ready', 1);
