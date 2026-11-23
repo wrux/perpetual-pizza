@@ -1,6 +1,7 @@
 import { defineConfig } from 'astro/config';
 import shaders, { shippedUniformNames } from './tools/glsl.mjs';
 import glConstants from './tools/gl-constants.mjs';
+import earlyHints from './tools/early-hints.mjs';
 
 /*
  * The minifier shortens property names, which is only safe for names the
@@ -30,6 +31,7 @@ const oldPizzaPages = Object.fromEntries(['01', '02', '03', '04', '05', '06'].ma
 
 export default defineConfig({
   output: 'static',
+  integrations: [earlyHints],
   // One small stylesheet: putting it in the page saves a round trip before anything can be drawn.
   build: { inlineStylesheets: 'always' },
   vite: {
