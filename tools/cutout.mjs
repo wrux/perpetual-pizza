@@ -29,6 +29,11 @@ const FILL = 0.46; // a cut-out's widest point sits this far from its tile centr
 const RAYS = 64;
 /** How the textures are stored: AVIF is about half the size of WebP at the same quality. */
 const AVIF = { quality: 50, effort: 6 };
+/** Write a texture into public/. Set MASTERS to a folder to also keep an uncompressed copy there, for comparing encoders. */
+async function save(image, name) {
+  await image.clone().avif(AVIF).toFile(path.join(ROOT, `public/pizza/toppings/${name}.avif`));
+  if (process.env.MASTERS) await image.clone().png().toFile(path.join(process.env.MASTERS, `${name}.png`));
+}
 const debug = process.argv.includes('--debug');
 
 const median = (values) => {
@@ -336,7 +341,7 @@ async function cut(entry) {
       .png()
       .toBuffer();
   }
-  const round = (v) => Number(v.toFixed(4));
+  const round = (v) => Number(v.toFixed(3));
   return { pixels: out, outer: outerT.map(round), inner: innerT?.map(round) ?? null, preview };
 }
 
@@ -352,7 +357,7 @@ for (const [kind, entries] of Object.entries(config.toppings)) {
   const atlas = sharp({ create: { width: TILE * cuts.length, height: TILE, channels: 3, background: '#000' } }).composite(
     cuts.map((c, i) => ({ input: c.pixels, raw: { width: TILE, height: TILE, channels: 3 }, left: i * TILE, top: 0 })),
   );
-  await atlas.avif(AVIF).toFile(path.join(ROOT, `public/pizza/toppings/${kind}.avif`));
+  await save(atlas, kind);
   manifest[kind] = { file: `/pizza/toppings/${kind}.avif`, cutouts: cuts.map((c) => ({ outer: c.outer, inner: c.inner })) };
   if (debug) {
     const strip = sharp({ create: { width: TILE * cuts.length, height: TILE, channels: 3, background: '#000' } }).composite(
@@ -392,15 +397,18 @@ if (config.base) {
   // tube angle t sits (cos t + 1) / 2 of the way from the inside edge to the
   // outside. Sampling exactly there smears the photo down the crust's steep
   // sides, so most of the weight goes to wrapping it evenly around the tube.
+  //
+  // The underside repeats the top, so only half the tube is stored, inside edge
+  // at the top row: the renderer mirrors it for the other half.
   const W = 2048;
-  const H = 256;
+  const H = 128;
   const pad = Math.ceil(outer) + 2;
   const side = pad * 2;
   const photo = await region(src, Math.round(cx - pad), Math.round(cy - pad), side, side, side);
   const out = Buffer.alloc(W * H * 3);
   for (let y = 0; y < H; y++) {
-    const t = (y / H) * Math.PI * 2;
-    const wrapped = 1 - Math.abs(t <= Math.PI ? t : Math.PI * 2 - t) / Math.PI;
+    const t = (Math.PI * (H - 0.5 - y)) / H;
+    const wrapped = 1 - t / Math.PI;
     const across = ((Math.cos(t) + 1) / 2) * 0.25 + wrapped * 0.75;
     for (let x = 0; x < W; x++) {
       const a = (x / W) * Math.PI * 2;
@@ -420,9 +428,9 @@ if (config.base) {
       }
     }
   }
-  await sharp(out, { raw: { width: W, height: H, channels: 3 } }).avif(AVIF).toFile(path.join(ROOT, 'public/pizza/toppings/crust.avif'));
+  await save(sharp(out, { raw: { width: W, height: H, channels: 3 } }), 'crust');
   if (debug) {
-    await sharp(out, { raw: { width: W, height: H, channels: 3 } }).extract({ left: 0, top: 0, width: W, height: H / 2 }).png().toFile(path.join(ROOT, 'tools/debug/crust.png'));
+    await sharp(out, { raw: { width: W, height: H, channels: 3 } }).png().toFile(path.join(ROOT, 'tools/debug/crust.png'));
   }
   console.log('base: crust unwrapped');
 }
@@ -431,9 +439,9 @@ if (config.base) {
 // surface: "cheeseDetail": { src, left, top, size } is a square of photo pixels.
 if (config.cheeseDetail) {
   const { src, left, top, size } = config.cheeseDetail;
-  const DETAIL = 1024;
+  const DETAIL = 512;
   const detail = await region(src, left, top, size, size, DETAIL);
-  await sharp(detail, { raw: { width: DETAIL, height: DETAIL, channels: 3 } }).avif(AVIF).toFile(path.join(ROOT, 'public/pizza/toppings/cheese-detail.avif'));
+  await save(sharp(detail, { raw: { width: DETAIL, height: DETAIL, channels: 3 } }), 'cheese-detail');
   console.log('cheese detail: cropped');
 }
 

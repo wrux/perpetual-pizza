@@ -352,6 +352,8 @@ export interface TextureOptions {
   /** The image holds colours (sRGB) rather than data such as normals or roughness. */
   srgb?: boolean;
   wrap?: 'repeat' | 'mirror' | 'clamp';
+  /** Wrapping along v, where it differs from u. */
+  wrapV?: 'repeat' | 'mirror' | 'clamp';
   /** Sharpen the texture at glancing angles, up to this many samples. */
   anisotropy?: number;
   /** Skip the mipmaps, for images only ever shown at their own size. */
@@ -366,9 +368,9 @@ export function createTexture(gl: GL, source: TexImageSource, o: TextureOptions 
   gl.pixelStorei(gl.UNPACK_COLORSPACE_CONVERSION_WEBGL, gl.NONE);
   gl.texImage2D(gl.TEXTURE_2D, 0, o.srgb ? gl.SRGB8_ALPHA8 : gl.RGBA8, gl.RGBA, gl.UNSIGNED_BYTE, source);
   gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, false);
-  const wrap = o.wrap === 'repeat' ? gl.REPEAT : o.wrap === 'mirror' ? gl.MIRRORED_REPEAT : gl.CLAMP_TO_EDGE;
-  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, wrap);
-  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, wrap);
+  const mode = (wrap = o.wrap) => (wrap === 'repeat' ? gl.REPEAT : wrap === 'mirror' ? gl.MIRRORED_REPEAT : gl.CLAMP_TO_EDGE);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, mode());
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, mode(o.wrapV ?? o.wrap));
   gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, o.flat ? gl.LINEAR : gl.LINEAR_MIPMAP_LINEAR);
   if (!o.flat) gl.generateMipmap(gl.TEXTURE_2D);
   const ext = o.anisotropy && gl.getExtension('EXT_texture_filter_anisotropic');

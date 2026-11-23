@@ -21,6 +21,7 @@ uniform sampler2DShadow uShadowMap;
 uniform mat4 uView;
 uniform mat4 uShadow;
 uniform vec3 uEye;
+uniform vec2 uMapRepeat;
 uniform vec3 uColor;
 uniform float uRough;
 uniform float uNormalScale;
@@ -84,7 +85,7 @@ void main() {
   vec3 V = normalize( uEye - vWorld );
 
   /* Colour: the map, fine grain, and real mottling wherever the map is cheese. */
-  vec3 albedo = texture( uMap, vUv ).rgb * uColor;
+  vec3 albedo = texture( uMap, vUv * uMapRepeat ).rgb * uColor;
   vec2 grainUv = vUv * uGrainRepeat;
   vec3 grain = texture( uGrainMap, grainUv ).rgb;
   albedo *= 1.0 + ( grain.r - 0.5 ) * uGrainTint;

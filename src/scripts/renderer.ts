@@ -47,6 +47,8 @@ export interface Grain {
 
 export interface Material {
   map?: WebGLTexture | null;
+  /** How many times the map repeats across the UVs, where it isn't once: the other maps always span them once. */
+  mapRepeat?: [number, number];
   /** Multiplies the map, in linear light. */
   color?: Vec3;
   normalMap?: WebGLTexture | null;
@@ -231,6 +233,7 @@ export function createRenderer(gl: GL): Renderer {
     bind(2, m.roughMap ?? white);
     bind(3, grain ?? white);
     bind(4, m.cheese ?? white);
+    gl.uniform2fv(u.uMapRepeat, m.mapRepeat ?? [1, 1]);
     gl.uniform3fv(u.uColor, m.color ?? [1, 1, 1]);
     gl.uniform1f(u.uRough, m.rough ?? 1);
     gl.uniform1f(u.uNormalScale, m.normalScale ?? 1);

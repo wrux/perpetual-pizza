@@ -401,7 +401,7 @@ async function loadBasePhotos(gl: GL): Promise<BasePhotos> {
           .then((image) => createTexture(gl, image, { srgb: true, anisotropy: 8, ...options }))
           .catch(() => null)
       : null;
-  const crust = load(files.crust, { wrap: 'repeat' });
+  const crust = load(files.crust, { wrap: 'repeat', wrapV: 'mirror' });
   // Mirrored, so the photo meets itself at every repeat and no seam shows.
   const cheeseDetail = load(files.cheeseDetail, { wrap: 'mirror' });
   return { crust: await crust, cheeseDetail: await cheeseDetail };
@@ -739,6 +739,8 @@ function buildPizza(
     // The photographed crust supplies the colour; the painted maps still give it its bumps, toned down.
     material: {
       map: crustPhoto ?? cached(crustMaps.color, { ...tiled, srgb: true }),
+      // The photo holds half the tube and is mirrored for the underside.
+      mapRepeat: crustPhoto ? [1, 2] : undefined,
       color: crustPhoto ? srgb('#e8e8e8') : undefined,
       normalMap: cached(crustMaps.normal, tiled),
       normalScale: crustPhoto ? 0.5 : 1,
@@ -998,7 +1000,7 @@ export async function createPizza(
   }
 
   // Start the downloads first, so they arrive while the base is being painted.
-  const loading = Promise.all([loadPhotos(gl), loadBasePhotos(gl), loadImage('/pizza/env.png')]);
+  const loading = Promise.all([loadPhotos(gl), loadBasePhotos(gl), loadImage('/pizza/env.webp')]);
   await prepaint(config.seed, onProgress);
   const [photos, base, studio] = await loading;
   renderer.setEnvironment(studio);

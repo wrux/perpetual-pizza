@@ -5,5 +5,5 @@
 # The pizza's pictures keep their names: reuse them for a day, and refresh them in the background for a week.
 /pizza/toppings/*
   Cache-Control: public, max-age=86400, stale-while-revalidate=604800
-/pizza/env.png
+/pizza/env.webp
   Cache-Control: public, max-age=86400, stale-while-revalidate=604800
