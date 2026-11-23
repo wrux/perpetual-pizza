@@ -61,7 +61,8 @@ export interface Material {
   grain?: Grain;
   /** A close-up photo of melted cheese, laid over the parts of the map that are cheese-coloured. */
   cheese?: WebGLTexture | null;
-  side?: 'front' | 'back' | 'both';
+  /** Draw the inside faces instead of the outside ones. */
+  inside?: boolean;
   casts?: boolean;
   receives?: boolean;
 }
@@ -82,12 +83,6 @@ export interface View {
   projection: Mat4;
   view: Mat4;
   eye: Vec3;
-}
-
-export interface RenderOptions {
-  shadows?: boolean;
-  /** Draw on an empty, unfogged stage with a clear background, for thumbnails. */
-  stage?: boolean;
 }
 
 /* Lights. Colours are in linear light with their brightness multiplied in. */
@@ -119,23 +114,25 @@ const ENV_HEIGHT = 32;
 
 const vec3 = (v: Vec3) => `vec3( ${v.map((x) => x.toFixed(5)).join(', ')} )`;
 
-/** What the shaders are told about the scene: they read these names as constants. */
-const SCENE = {
-  SUN_FROM: vec3(normalize(SUN_AT)),
-  SUN: vec3(SUN),
-  FILL_FROM: vec3(FILL_FROM),
-  FILL: vec3(FILL),
-  SKY: vec3(SKY),
-  GROUND: vec3(GROUND),
-  FOG: vec3(FOG),
-  FOG_NEAR: FOG_NEAR.toFixed(1),
-  FOG_FAR: FOG_FAR.toFixed(1),
-  ENVIRONMENT: ENVIRONMENT.toFixed(3),
-  EXPOSURE: EXPOSURE.toFixed(3),
-  ENV_TOP: (ENV_LEVELS - 1).toFixed(1),
-  SHADOW_STEP: (1.5 / SHADOW_SIZE).toFixed(6),
-};
-const chunks = { display: DISPLAY };
+/**
+ * What the shaders are told about the scene: they read these names as
+ * constants. Written out as text, so nothing can rename them on the way.
+ */
+const SCENE = `
+#define SUN_FROM ${vec3(normalize(SUN_AT))}
+#define SUN ${vec3(SUN)}
+#define FILL_FROM ${vec3(FILL_FROM)}
+#define FILL ${vec3(FILL)}
+#define SKY ${vec3(SKY)}
+#define GROUND ${vec3(GROUND)}
+#define FOG ${vec3(FOG)}
+#define FOG_NEAR ${FOG_NEAR.toFixed(1)}
+#define FOG_FAR ${FOG_FAR.toFixed(1)}
+#define ENVIRONMENT ${ENVIRONMENT.toFixed(3)}
+#define EXPOSURE ${EXPOSURE.toFixed(3)}
+#define ENV_TOP ${(ENV_LEVELS - 1).toFixed(1)}
+#define SHADOW_STEP ${(1.5 / SHADOW_SIZE).toFixed(6)}
+`;
 
 /** Vertical gradient behind the pizza: near-black overhead, an ember glow at the horizon. */
 function backdropCanvas() {
@@ -165,14 +162,15 @@ export interface Renderer {
   setEnvironment(image: HTMLImageElement): void;
   /** Set the fine grain texture that grained materials share. */
   setGrain(texture: WebGLTexture): void;
-  render(items: Item[], view: View, target: Target | null, options?: RenderOptions): void;
+  /** Draw the pizza. `stage` draws on an empty, unfogged, shadowless stage with a clear background, for thumbnails. */
+  render(items: Item[], view: View, target: Target | null, stage?: boolean): void;
   /** The pixels of a target, bottom row first. */
   read(target: Target): Uint8Array;
 }
 
 export function createRenderer(gl: GL): Renderer {
-  const program = createProgram(gl, VERTEX, glsl(FRAGMENT, SCENE, chunks));
-  const backdrop = createProgram(gl, SCREEN_VERTEX, glsl(BACKDROP, SCENE, chunks));
+  const program = createProgram(gl, VERTEX, glsl(FRAGMENT, SCENE, DISPLAY));
+  const backdrop = createProgram(gl, SCREEN_VERTEX, glsl(BACKDROP, SCENE, DISPLAY));
   const depth = createProgram(gl, DEPTH_VERTEX, DEPTH_FRAGMENT);
   const u = program.u;
 
@@ -243,11 +241,7 @@ export function createRenderer(gl: GL): Renderer {
     gl.uniform1f(u.uGrainBump, m.grain?.bump ?? 0);
     gl.uniform1f(u.uCheesy, m.cheese ? 1 : 0);
     gl.uniform1f(u.uShadowed, shadows && m.receives ? 1 : 0);
-    if (m.side === 'both') gl.disable(gl.CULL_FACE);
-    else {
-      gl.enable(gl.CULL_FACE);
-      gl.cullFace(m.side === 'back' ? gl.FRONT : gl.BACK);
-    }
+    gl.cullFace(m.inside ? gl.FRONT : gl.BACK);
   }
 
   return {
@@ -306,8 +300,8 @@ export function createRenderer(gl: GL): Renderer {
       grain = texture;
     },
 
-    render(items, view, target, { shadows = false, stage = false } = {}) {
-      shadows = shadows && !stage;
+    render(items, view, target, stage = false) {
+      const shadows = !stage;
       gl.enable(gl.DEPTH_TEST);
       gl.depthMask(true);
       if (shadows) drawShadows(items);
@@ -328,6 +322,7 @@ export function createRenderer(gl: GL): Renderer {
       }
 
       gl.useProgram(program.handle);
+      gl.enable(gl.CULL_FACE);
       gl.uniformMatrix4fv(u.uView, false, view.view);
       gl.uniformMatrix4fv(u.uViewProjection, false, multiply(view.projection, view.view));
       gl.uniformMatrix4fv(u.uShadow, false, shadowMatrix);

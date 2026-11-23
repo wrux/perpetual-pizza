@@ -4,7 +4,6 @@ import {
   createTarget,
   createTexture,
   deleteTarget,
-  disc,
   geometryFrom,
   identity,
   loadImage,
@@ -52,16 +51,7 @@ export interface PizzaConfig {
   cycleSeconds: number;
   /** Rotation of the whole stack, in turns per cycle. */
   spinTurns: number;
-  /** Extra turns each nested level makes relative to its parent per cycle. Integers keep the loop seamless. */
-  innerSpinTurns: number;
-  /** Size of the inner pizza relative to its parent. */
-  ratio: number;
-  /** How many nested levels to render. */
-  levels: number;
-  /** Seed for topping placement and texture noise. */
-  seed: number;
   toppings: ToppingCounts;
-  shadows: boolean;
   /** Zoom in (1) or out (-1). */
   direction: 1 | -1;
   /** Camera elevation above the pizza, in degrees. 90 looks straight down. */
@@ -70,25 +60,26 @@ export interface PizzaConfig {
   fov: number;
   /** Post-processing look. */
   effect: EffectName;
-  /** Pixel block size for the pixelated looks. */
-  pixelSize: number;
 }
 
 export const defaultConfig: PizzaConfig = {
   cycleSeconds: 7 / 3.35,
   spinTurns: -0.4,
-  innerSpinTurns: 0,
-  ratio: 0.2,
-  levels: 6,
-  seed: 7,
   toppings: { pepperoni: 12, mushroom: 12, basil: 12, olive: 12, jalapeno: 12, ham: 12 },
-  shadows: true,
   direction: 1,
   elevation: 41,
   fov: 42,
   effect: 'none',
-  pixelSize: 12,
 };
+
+/** Seed for topping placement and texture noise: every visitor gets the same pizza. */
+const SEED = 7;
+/** Size of the inner pizza relative to its parent. */
+const RATIO = 0.2;
+/** How many nested levels are drawn. */
+const LEVELS = 6;
+/** Pixel block size for the pixel look, in device pixels. */
+const PIXEL_SIZE = 12;
 
 /** Start-up progress: a human caption and a 0..1 fraction. */
 export type ProgressCallback = (caption: string, fraction: number) => void;
@@ -103,7 +94,6 @@ export interface PizzaController {
   update(patch: Partial<PizzaConfig>): void;
   /** Render small PNG data URLs of every look and every topping, for the options panel. */
   renderPreviews(size?: number): Promise<Previews>;
-  dispose(): void;
 }
 
 /** Planar bounds of an extruded topping, shared by its UV map and its painter. */
@@ -559,13 +549,10 @@ interface Painted {
   height: number;
 }
 interface PaintedSet {
-  seed: number;
   cheese: Painted;
   crust: Painted;
 }
 
-/** Painting is the slow part of making a pizza, so keep the last set until the seed changes. */
-let paintedCache: PaintedSet | null = null;
 /** Let the browser paint a frame between heavy steps. */
 const breathe = () => new Promise<void>((resolve) => requestAnimationFrame(() => setTimeout(resolve, 0)));
 
@@ -586,14 +573,13 @@ function paintInWorker(job: PaintJob): Promise<Painted> {
 /** With a photographed cheese surface to lay over it, the painted cheese leaves out its own browning. */
 const PHOTO_CHEESE = Boolean((photoManifest as { cheeseDetail?: string | null }).cheeseDetail);
 
-/** Paint the base for a seed, both surfaces at once, reporting progress so a loader can animate. */
-async function prepaint(seed: number, report: ProgressCallback = () => {}) {
-  if (paintedCache?.seed === seed) return;
+/** Paint the base, both surfaces at once, reporting progress so a loader can animate. */
+async function prepaint(report: ProgressCallback): Promise<PaintedSet> {
   report('Stretching the dough', 0);
-  const crust = paintInWorker({ what: 'crust', seed });
-  const cheese = paintInWorker({ what: 'cheese', seed, photographed: PHOTO_CHEESE });
+  const crust = paintInWorker({ what: 'crust', seed: SEED });
+  const cheese = paintInWorker({ what: 'cheese', seed: SEED, photographed: PHOTO_CHEESE });
   void crust.then(() => report('Spreading sauce and grating cheese', 1 / 4));
-  paintedCache = { seed, cheese: await cheese, crust: await crust };
+  return { cheese: await cheese, crust: await crust };
 }
 
 /** A geometry and the material it is drawn with. */
@@ -620,18 +606,17 @@ function buildPizza(
   gl: GL,
   photos: PhotoSet,
   basePhotos: BasePhotos,
-  /** The texture of a painted map, uploaded once and kept until the seed changes. */
+  painted: PaintedSet,
+  /** The texture of a painted map, uploaded once and kept. */
   cached: (image: ImageData, options: TextureOptions) => WebGLTexture,
 ): BuiltPizza {
   const crustPhoto = basePhotos.crust;
-  const rng = mulberry32(config.seed);
-  // Painted before any build, by prepaint().
-  const painted = paintedCache!;
+  const rng = mulberry32(SEED);
   const parts: Part[] = [];
   const tiled: TextureOptions = { wrap: 'repeat', anisotropy: 8 };
 
   // Inner pizza hole: next level is `ratio` the size, including its crust.
-  const holeRadius = (CRUST_RADIUS + CRUST_TUBE) * config.ratio * 0.97;
+  const holeRadius = (CRUST_RADIUS + CRUST_TUBE) * RATIO * 0.97;
 
   /* Cheese + sauce top, from the hole out under the crust. */
   const cheese = painted.cheese;
@@ -716,27 +701,16 @@ function buildPizza(
   // The inner pizza presses a shadow into the cheese around its recess.
   halo(0, 0, holeRadius * 0.9, holeRadius * 1.45, '52,20,6', 0.6);
 
-  /* Base body under the cheese. */
-  const dough = srgb('#9d6a38');
-  parts.push({
-    geometry: tube(DISC_RADIUS, DISC_RADIUS - 0.01, BASE_THICKNESS, 128).transform(translation(0, -BASE_THICKNESS / 2, 0)),
-    material: { color: dough, rough: 0.95 },
-  });
-  parts.push({
-    geometry: disc(DISC_RADIUS, 128).transform(compose(translation(0, -BASE_THICKNESS, 0), rotation(0, Math.PI / 2))),
-    material: { color: dough, rough: 0.95, side: 'both' },
-  });
-
   /* Hole wall so the inner pizza sits in a little recess. */
   parts.push({
     geometry: tube(holeRadius, holeRadius, BASE_THICKNESS, 64).transform(translation(0, -BASE_THICKNESS / 2, 0)),
-    material: { color: srgb('#6e3a16'), side: 'back' },
+    material: { color: srgb('#6e3a16'), inside: true },
   });
 
   /* Crust. */
   const crustMaps = painted.crust;
   parts.push({
-    geometry: crustGeometry(config.seed, crustMaps).transform(compose(translation(0, -0.012, 0), rotation(0, Math.PI / 2))),
+    geometry: crustGeometry(SEED, crustMaps).transform(compose(translation(0, -0.012, 0), rotation(0, Math.PI / 2))),
     // The photographed crust supplies the colour; the painted maps still give it its bumps, toned down.
     material: {
       map: crustPhoto ?? cached(crustMaps.color, { ...tiled, srgb: true }),
@@ -772,7 +746,7 @@ function buildPizza(
       casts: true,
       receives: true,
     };
-    models[kind] = sheet.cutouts.map((cut, i) => ({ geometry: photoGeometry(kind, cut, i, tiles, config.seed), material }));
+    models[kind] = sheet.cutouts.map((cut, i) => ({ geometry: photoGeometry(kind, cut, i, tiles, SEED), material }));
   }
 
   const placed: Array<{ x: number; z: number; r: number }> = [];
@@ -950,14 +924,14 @@ export async function createPizza(
   /* What is drawn each frame: every mesh of the pizza once per nesting level, and from where. */
   let items: Item[] = [];
   let view = cameraAt(config.fov, 1, config.elevation, 2.9);
-  const drawScene = (target: Target | null) => renderer.render(items, view, target, { shadows: config.shadows });
+  const drawScene = (target: Target | null) => renderer.render(items, view, target);
 
   /* Look transitions: keep the frame from before a change, then wipe from it to the live result. */
   const transition = createTransition(gl);
   let before: Target | null = null;
   let live: Target | null = null;
 
-  const makePipeline = () => createPipeline({ gl, effect: config.effect, pixelSize: config.pixelSize, drawScene });
+  const makePipeline = () => createPipeline({ gl, effect: config.effect, pixelSize: PIXEL_SIZE, drawScene });
   let pipeline: EffectPipeline = makePipeline();
   const rebuildPipeline = () => {
     pipeline.dispose();
@@ -966,35 +940,28 @@ export async function createPizza(
   };
 
   /** Run `change` with a wipe from the frame before it to the frames after. */
-  function withTransition(change: () => void, duration = 700) {
+  function withTransition(change: () => void) {
     before ??= createTarget(gl!, 'image', canvas.width, canvas.height);
     pipeline.render(before, elapsed);
     change();
-    transition.begin(performance.now(), duration);
+    transition.begin(performance.now());
   }
 
   /* Pizza */
   let meshes: Mesh[] = [];
   let ownTextures: WebGLTexture[] = [];
   let samples: BuiltPizza['samples'] = {};
-  const painted = new Map<ImageData, WebGLTexture>();
-  let paintedSeed = config.seed;
+  const uploaded = new Map<ImageData, WebGLTexture>();
   const cached = (source: ImageData, options: TextureOptions) => {
-    let texture = painted.get(source);
-    if (!texture) painted.set(source, (texture = createTexture(gl, source, options)));
+    let texture = uploaded.get(source);
+    if (!texture) uploaded.set(source, (texture = createTexture(gl, source, options)));
     return texture;
   };
 
   function rebuild() {
     meshes.forEach((mesh) => mesh.free());
     ownTextures.forEach((texture) => gl!.deleteTexture(texture));
-    if (paintedSeed !== config.seed) {
-      // A new seed repaints the base, so the old paintings' textures go.
-      painted.forEach((texture) => gl!.deleteTexture(texture));
-      painted.clear();
-      paintedSeed = config.seed;
-    }
-    const built = buildPizza(config, gl!, photos, base, cached);
+    const built = buildPizza(config, gl!, photos, base, painted, cached);
     meshes = built.parts.map((part) => renderer.upload(part.geometry, part.material));
     ownTextures = built.textures;
     samples = built.samples;
@@ -1002,7 +969,7 @@ export async function createPizza(
 
   // Start the downloads first, so they arrive while the base is being painted.
   const loading = Promise.all([loadPhotos(gl), loadBasePhotos(gl), loadImage('/pizza/env.webp')]);
-  await prepaint(config.seed, onProgress);
+  const painted = await prepaint(onProgress);
   const [photos, base, studio] = await loading;
   renderer.setEnvironment(studio);
   rebuild();
@@ -1029,30 +996,28 @@ export async function createPizza(
     aim();
   }
   resize();
-  const resized = new ResizeObserver(resize);
-  resized.observe(canvas);
+  new ResizeObserver(resize).observe(canvas);
 
   /* Animation */
   let phase = 0; // 0..1 progress through one zoom cycle
   let spin = 0; // accumulated rotation of the whole stack, radians
   let last = performance.now();
   let elapsed = 0;
-  let raf = 0;
 
   /** Work out where every level of the stack sits for the current phase and spin. */
   function pose() {
     // Level 1 fills the frame at phase 0 and level 2 at phase 1.
-    const k = config.ratio;
+    const k = RATIO;
     const scale = Math.pow(k, -(1 + phase));
     // Each level sits LEVEL_DROP below its parent, so level n is at
     // LEVEL_DROP * (1 - k^n) / (1 - k) in the stack's own space. Lift the stack so the
     // level currently in focus (n = 1 + phase) always sits at the origin,
     // otherwise the stack drifts down over a cycle and snaps back on reset.
     const lift = (-scale * LEVEL_DROP * (1 - Math.pow(k, 1 + phase))) / (1 - k);
-    // Each level sits just inside its parent's recess, `ratio` its size.
-    const nest = compose(translation(0, LEVEL_DROP, 0), rotation(1, phase * config.innerSpinTurns * Math.PI * 2), scaling(k));
+    // Each level sits just inside its parent's recess, a fraction of its size.
+    const nest = compose(translation(0, LEVEL_DROP, 0), scaling(k));
     const levels: Mat4[] = [compose(translation(0, lift, 0), rotation(1, spin), scaling(scale))];
-    for (let i = 1; i < config.levels; i++) levels.push(multiply(levels[i - 1], nest));
+    for (let i = 1; i < LEVELS; i++) levels.push(multiply(levels[i - 1], nest));
     items = meshes.flatMap((mesh) => levels.map((matrix) => ({ mesh, matrix })));
   }
 
@@ -1066,7 +1031,7 @@ export async function createPizza(
   }
 
   function frame(now: number) {
-    raf = requestAnimationFrame(frame);
+    requestAnimationFrame(frame);
     const dt = Math.min((now - last) / 1000, 0.1);
     last = now;
 
@@ -1075,14 +1040,8 @@ export async function createPizza(
     const step = (dt / cycle) * config.direction;
     phase += step;
     spin += step * config.spinTurns * Math.PI * 2;
-    if (phase >= 1) {
-      phase -= 1;
-      // Loop reset: level n+1 now looks exactly like level n did at phase 0.
-      spin += config.innerSpinTurns * Math.PI * 2;
-    } else if (phase < 0) {
-      phase += 1;
-      spin -= config.innerSpinTurns * Math.PI * 2;
-    }
+    // Loop reset: once a cycle is done, level n+1 looks exactly like level n did at its start.
+    phase = (phase + 1) % 1;
     spin = ((spin % (Math.PI * 2)) + Math.PI * 2) % (Math.PI * 2);
 
     if (import.meta.env.DEV) {
@@ -1099,7 +1058,7 @@ export async function createPizza(
   await breathe();
   draw();
 
-  raf = requestAnimationFrame(frame);
+  requestAnimationFrame(frame);
 
   /** A target's picture as a PNG data URL. */
   function targetToDataUrl(target: Target) {
@@ -1133,8 +1092,8 @@ export async function createPizza(
       const p = createPipeline({
         gl: gl!,
         effect,
-        pixelSize: Math.max(2, Math.round(config.pixelSize / 2)),
-        drawScene: (target) => renderer.render(items, tile, target, { shadows: config.shadows }),
+        pixelSize: PIXEL_SIZE / 2,
+        drawScene: (target) => renderer.render(items, tile, target),
       });
       p.setSize(size, size);
       p.render(picture, 1.3);
@@ -1161,9 +1120,7 @@ export async function createPizza(
       const radius = Math.hypot(high[0] - low[0], high[1] - low[1], high[2] - low[2]) / 2;
       const distance = (radius * 1.15) / Math.sin(radians(14));
       const eye = centre.map((v, i) => v + from[i] * distance) as Vec3;
-      renderer.render([{ mesh, matrix: identity() }], { projection: perspective(28, 1, 0.01, 10), view: lookAt(eye, centre), eye }, stage, {
-        stage: true,
-      });
+      renderer.render([{ mesh, matrix: identity() }], { projection: perspective(28, 1, 0.01, 10), view: lookAt(eye, centre), eye }, stage, true);
       toppings[kind] = targetToDataUrl(stage);
       mesh.free();
       await breathe();
@@ -1177,30 +1134,16 @@ export async function createPizza(
     config,
     renderPreviews,
     update(patch) {
-      const needsRebuild =
-        patch.toppings !== undefined || patch.seed !== undefined || patch.ratio !== undefined || patch.levels !== undefined;
       const lookChanged = patch.effect !== undefined && patch.effect !== config.effect;
-      const seedChanged = patch.seed !== undefined && patch.seed !== config.seed;
       Object.assign(config, patch, patch.toppings ? { toppings: { ...config.toppings, ...patch.toppings } } : {});
-
       const apply = () => {
-        if (patch.effect !== undefined) rebuildPipeline();
-        else if (patch.pixelSize !== undefined) pipeline.setPixelSize(patch.pixelSize);
+        if (lookChanged) rebuildPipeline();
         if (patch.elevation !== undefined || patch.fov !== undefined) aim();
-        if (needsRebuild) rebuild();
+        if (patch.toppings) rebuild();
       };
-
-      // Wipe between looks and between differently seeded pizzas; everything else changes live.
-      const run = () => (lookChanged || seedChanged ? withTransition(apply, lookChanged ? 700 : 500) : apply());
-      // A new seed needs its base painted before the pizza can be rebuilt.
-      if (seedChanged) void prepaint(config.seed).then(run);
-      else run();
-    },
-    dispose() {
-      cancelAnimationFrame(raf);
-      resized.disconnect();
-      // Dropping the context frees everything made with it.
-      gl.getExtension('WEBGL_lose_context')?.loseContext();
+      // Wipe between looks; everything else changes live.
+      if (lookChanged) withTransition(apply);
+      else apply();
     },
   };
 }

@@ -1,23 +1,18 @@
-import { createScreenPass, createTarget, deleteTarget, glsl, type GL, type Target } from './gl';
+import { createScreenPass, createTarget, deleteTarget, type GL, type Target } from './gl';
 import COPY from '../shaders/copy.glsl';
-import COMMON from '../shaders/looks/common.glsl';
 import CRT from '../shaders/looks/crt.glsl';
 import FILM from '../shaders/looks/film.glsl';
 import LSD from '../shaders/looks/lsd.glsl';
-import OIL from '../shaders/looks/oil.glsl';
 import PIXEL from '../shaders/looks/pixel.glsl';
-import PSYCHEDELIC from '../shaders/looks/psychedelic.glsl';
 import TRANSITION from '../shaders/looks/transition.glsl';
 import VHS from '../shaders/looks/vhs.glsl';
 
 export const EFFECTS = [
   'none',
   'pixelate',
-  'oil',
   'film',
   'vhs',
   'crt',
-  'psychedelic',
   'lsd',
 ] as const;
 export type EffectName = (typeof EFFECTS)[number];
@@ -25,21 +20,17 @@ export type EffectName = (typeof EFFECTS)[number];
 export const effectLabels: Record<EffectName, string> = {
   none: 'Default',
   pixelate: 'Pixel',
-  oil: 'Oil Painting',
   film: 'Old Film',
   vhs: 'VHS',
   crt: 'CRT',
-  psychedelic: 'Psychedelic',
   lsd: 'Acid',
 };
 
 /** Looks that are one shader over the plain render. */
 const singlePassLooks: Partial<Record<EffectName, string>> = {
-  oil: OIL,
   film: FILM,
   vhs: VHS,
   crt: CRT,
-  psychedelic: PSYCHEDELIC,
 };
 
 /** A wipe from a stored frame to the live one, used when the look or the pizza changes. */
@@ -94,14 +85,13 @@ export interface EffectPipeline {
   render(target: Target | null, elapsed: number): void;
   /** Size of the finished picture, in device pixels. */
   setSize(width: number, height: number): void;
-  setPixelSize(size: number): void;
   dispose(): void;
 }
 
 export function createPipeline({ gl, effect, pixelSize, drawScene }: EffectContext): EffectPipeline {
   const blocky = effect === 'pixelate';
   const source = blocky ? PIXEL : effect === 'lsd' ? LSD : singlePassLooks[effect];
-  const look = source ? createScreenPass(gl, glsl(source, {}, { common: COMMON })) : null;
+  const look = source ? createScreenPass(gl, source) : null;
   const copy = createScreenPass(gl, COPY);
   let width = 1;
   let height = 1;
@@ -143,10 +133,6 @@ export function createPipeline({ gl, effect, pixelSize, drawScene }: EffectConte
     setSize(w, h) {
       width = w;
       height = h;
-      release();
-    },
-    setPixelSize(size) {
-      pixelSize = size;
       release();
     },
     dispose() {

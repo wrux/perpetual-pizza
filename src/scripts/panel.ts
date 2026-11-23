@@ -1,4 +1,3 @@
-import { EFFECTS, type EffectName } from './effects';
 import { defaultConfig, type PizzaConfig, type PizzaController } from './pizza';
 
 /** Cycle length that the speed slider shows as 1×. */
@@ -8,104 +7,74 @@ const IDLE_MS = 3000;
 type Primitive = number | string | boolean;
 
 /* ------------------------------------------------------------------ */
-/* Config <-> URL query string                                         */
+/* Controls <-> config                                                 */
 /* ------------------------------------------------------------------ */
 
-/** Short, readable query keys for each option. Only non-default values are written. */
-const query: Array<{
-  key: string;
-  read(c: PizzaConfig): Primitive;
-  parse(raw: string): Partial<PizzaConfig> | null;
-  isDefault(c: PizzaConfig): boolean;
-}> = [
-  {
-    key: 'speed',
-    read: (c) => round(BASE_CYCLE_SECONDS / c.cycleSeconds, 2),
-    parse: (raw) => num(raw, 0.05, 20, (v) => ({ cycleSeconds: BASE_CYCLE_SECONDS / v })),
-    isDefault: (c) => c.cycleSeconds === defaultConfig.cycleSeconds,
-  },
-  {
-    key: 'spin',
-    read: (c) => round(c.spinTurns, 2),
-    parse: (raw) => num(raw, -5, 5, (v) => ({ spinTurns: v })),
-    isDefault: (c) => c.spinTurns === defaultConfig.spinTurns,
-  },
-  {
-    key: 'dir',
-    read: (c) => (c.direction === -1 ? 'out' : 'in'),
-    parse: (raw) => (raw === 'out' ? { direction: -1 } : raw === 'in' ? { direction: 1 } : null),
-    isDefault: (c) => c.direction === defaultConfig.direction,
-  },
-  {
-    key: 'angle',
-    read: (c) => Math.round(c.elevation),
-    parse: (raw) => num(raw, 10, 90, (v) => ({ elevation: v })),
-    isDefault: (c) => c.elevation === defaultConfig.elevation,
-  },
-  {
-    key: 'lens',
-    read: (c) => Math.round(c.fov),
-    parse: (raw) => num(raw, 20, 100, (v) => ({ fov: v })),
-    isDefault: (c) => c.fov === defaultConfig.fov,
-  },
-  {
-    key: 'look',
-    read: (c) => c.effect,
-    parse: (raw) => ((EFFECTS as readonly string[]).includes(raw) ? { effect: raw as EffectName } : null),
-    isDefault: (c) => c.effect === defaultConfig.effect,
-  },
-  {
-    key: 'px',
-    read: (c) => Math.round(c.pixelSize),
-    parse: (raw) => num(raw, 1, 64, (v) => ({ pixelSize: v })),
-    isDefault: (c) => c.pixelSize === defaultConfig.pixelSize,
-  },
-  {
-    key: 'shadows',
-    read: (c) => (c.shadows ? 'on' : 'off'),
-    parse: (raw) => (raw === 'off' ? { shadows: false } : raw === 'on' ? { shadows: true } : null),
-    isDefault: (c) => c.shadows === defaultConfig.shadows,
-  },
-  ...(['pepperoni', 'mushroom', 'basil', 'olive', 'jalapeno', 'ham'] as const).map((t) => ({
-    key: t,
-    read: (c: PizzaConfig) => c.toppings[t],
-    parse: (raw: string) => num(raw, 0, 100, (v) => ({ toppings: { [t]: Math.round(v) } }) as Partial<PizzaConfig>),
-    isDefault: (c: PizzaConfig) => c.toppings[t] === defaultConfig.toppings[t],
-  })),
-  {
-    key: 'seed',
-    read: (c) => c.seed,
-    parse: (raw) => num(raw, 0, 2 ** 31, (v) => ({ seed: Math.round(v) })),
-    isDefault: (c) => c.seed === defaultConfig.seed,
-  },
-];
+/** Every control names the setting it edits in `data-key`, as a path into the config. */
+const controls = () => Array.from(document.querySelectorAll<HTMLInputElement>('[data-key]'));
 
-function num(raw: string, min: number, max: number, make: (v: number) => Partial<PizzaConfig>) {
-  const v = Number(raw);
-  return Number.isFinite(v) ? make(Math.min(Math.max(v, min), max)) : null;
+/* Keys that map onto config fields with a nicer scale for humans. */
+const virtual: Record<string, { get(c: PizzaConfig): number; set(v: number): Partial<PizzaConfig> }> = {
+  speed: {
+    get: (c) => BASE_CYCLE_SECONDS / c.cycleSeconds,
+    set: (v) => ({ cycleSeconds: BASE_CYCLE_SECONDS / Math.max(v, 0.05) }),
+  },
+};
+
+/** The value a key has in a config. */
+const read = (config: PizzaConfig, key: string): Primitive =>
+  virtual[key]
+    ? virtual[key].get(config)
+    : (key.split('.').reduce<unknown>((o, k) => (o as Record<string, unknown>)?.[k], config) as Primitive);
+
+/** The change to a config that gives a key a value. */
+function patchFor(key: string, value: Primitive): Partial<PizzaConfig> {
+  if (virtual[key]) return virtual[key].set(Number(value));
+  const [head, tail] = key.split('.');
+  return { [head]: tail ? { [tail]: value } : value } as Partial<PizzaConfig>;
 }
 
-const round = (v: number, places: number) => Number(v.toFixed(places));
+const formatters: Record<string, (v: Primitive) => string> = {
+  speed: (v) => `${Number(v).toFixed(2)}×`,
+  spinTurns: (v) => `${Number(v).toFixed(2)} turns`,
+  elevation: (v) => `${v}°`,
+  fov: (v) => `${v}°`,
+};
 
-/** Options encoded in the current page URL. */
+/* ------------------------------------------------------------------ */
+/* Config <-> URL                                                      */
+/* ------------------------------------------------------------------ */
+
+/** A key's name in the URL: the last part of its path, so `toppings.olive` is just `olive`. */
+const param = (key: string) => key.split('.').pop()!;
+
+/**
+ * Options encoded in the page's URL. Each control accepts what it could have
+ * been set to by hand: a slider any number within its range, a choice only one
+ * of its values.
+ */
 export function optionsFromUrl(): Partial<PizzaConfig> {
   const params = new URLSearchParams(location.search);
   const out: Partial<PizzaConfig> = {};
-  for (const q of query) {
-    const raw = params.get(q.key);
-    if (raw === null) continue;
-    const patch = q.parse(raw);
-    if (!patch) continue;
-    const { toppings, ...rest } = patch;
-    Object.assign(out, rest);
-    if (toppings) out.toppings = { ...out.toppings, ...toppings } as PizzaConfig['toppings'];
+  for (const el of controls()) {
+    const key = el.dataset.key!;
+    const raw = params.get(param(key));
+    const number = Number(raw);
+    if (raw === null || (el.type === 'radio' ? raw !== el.value : Number.isNaN(number))) continue;
+    const value = el.type === 'radio' ? (Number.isNaN(number) ? raw : number) : Math.min(Math.max(number, Number(el.min)), Number(el.max));
+    const { toppings, ...rest } = patchFor(key, value);
+    Object.assign(out, rest, toppings && { toppings: { ...out.toppings, ...toppings } });
   }
   return out;
 }
 
+/** The page's address with every setting that isn't at its default. */
 function urlFor(config: PizzaConfig): string {
   const params = new URLSearchParams();
-  for (const q of query) if (!q.isDefault(config)) params.set(q.key, String(q.read(config)));
+  for (const key of new Set(controls().map((el) => el.dataset.key!))) {
+    const value = read(config, key);
+    if (value !== read(defaultConfig, key)) params.set(param(key), String(typeof value === 'number' ? Number(value.toFixed(2)) : value));
+  }
   const qs = params.toString();
   return location.pathname + (qs ? `?${qs}` : '');
 }
@@ -117,49 +86,16 @@ function writeUrl(config: PizzaConfig) {
   urlTimer = window.setTimeout(() => history.replaceState(null, '', urlFor(config)), 200);
 }
 
-/* ------------------------------------------------------------------ */
-/* Form binding                                                        */
-/* ------------------------------------------------------------------ */
-
-function getPath(obj: unknown, path: string): Primitive | undefined {
-  return path
-    .split('.')
-    .reduce<unknown>((o, k) => (o && typeof o === 'object' ? (o as Record<string, unknown>)[k] : undefined), obj) as
-    | Primitive
-    | undefined;
-}
-
-function patchFor(path: string, value: Primitive): Partial<PizzaConfig> {
-  const [head, ...rest] = path.split('.');
-  if (rest.length === 0) return { [head]: value } as Partial<PizzaConfig>;
-  return { [head]: { [rest.join('.')]: value } } as Partial<PizzaConfig>;
-}
-
-/* Virtual keys that map onto config fields with a nicer scale for humans. */
-const virtual: Record<string, { get(c: PizzaConfig): number; set(v: number): Partial<PizzaConfig> }> = {
-  speed: {
-    get: (c) => BASE_CYCLE_SECONDS / c.cycleSeconds,
-    set: (v) => ({ cycleSeconds: BASE_CYCLE_SECONDS / Math.max(v, 0.05) }),
-  },
-};
-
-const formatters: Record<string, (v: Primitive) => string> = {
-  speed: (v) => `${Number(v).toFixed(2)}×`,
-  spinTurns: (v) => `${Number(v).toFixed(2)} turns`,
-  elevation: (v) => `${v}°`,
-  fov: (v) => `${v}°`,
-};
-
 /** Wire up the controls. Resolves once the look and topping pictures are drawn. */
 export async function initPanel(pizza: PizzaController) {
   const panel = document.getElementById('options');
   const toggle = document.getElementById('toggle-options');
   if (!panel || !toggle) return;
 
-  const inputs = Array.from(document.querySelectorAll<HTMLInputElement | HTMLSelectElement>('[data-key]'));
+  const inputs = controls();
   const outputs = Array.from(panel.querySelectorAll<HTMLOutputElement>('[data-output]'));
 
-  const readKey = (key: string): Primitive => (virtual[key] ? virtual[key].get(pizza.config) : (getPath(pizza.config, key) ?? ''));
+  const readKey = (key: string) => read(pizza.config, key);
 
   /** Tell the slider's track how much of it to fill. */
   const paintTrack = (el: HTMLInputElement) => {
@@ -180,9 +116,9 @@ export async function initPanel(pizza: PizzaController) {
   function sync() {
     for (const el of inputs) {
       const value = readKey(el.dataset.key!);
-      if (el instanceof HTMLInputElement && el.type === 'radio') el.checked = el.value === String(value);
+      if (el.type === 'radio') el.checked = el.value === String(value);
       else el.value = String(value);
-      if (el instanceof HTMLInputElement && el.type === 'range') paintTrack(el);
+      if (el.type === 'range') paintTrack(el);
     }
     for (const out of outputs) showValue(out, readKey(out.dataset.output!));
   }
@@ -213,7 +149,7 @@ export async function initPanel(pizza: PizzaController) {
     const onChange = () => {
       const key = el.dataset.key!;
       let value: Primitive;
-      if (el instanceof HTMLInputElement && el.type === 'range') {
+      if (el.type === 'range') {
         value = Number(el.value);
         paintTrack(el);
       } else value = Number.isNaN(Number(el.value)) ? el.value : Number(el.value);
@@ -221,9 +157,8 @@ export async function initPanel(pizza: PizzaController) {
       if (key.startsWith('toppings.')) {
         const out = outputs.find((o) => o.dataset.output === key);
         if (out) showValue(out, value);
-        bake(key.slice('toppings.'.length) as keyof PizzaConfig['toppings'], Number(value));
-      } else if (virtual[key]) apply(virtual[key].set(Number(value)));
-      else apply(patchFor(key, value));
+        bake(param(key) as keyof PizzaConfig['toppings'], Number(value));
+      } else apply(patchFor(key, value));
     };
     el.addEventListener('input', onChange);
     el.addEventListener('change', onChange);

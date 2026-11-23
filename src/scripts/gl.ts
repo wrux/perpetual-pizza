@@ -282,34 +282,18 @@ export function tube(radiusTop: number, radiusBottom: number, height: number, se
   return geometryFrom(positions, uvs, gridIndex(segments, 1));
 }
 
-/** A flat disc in the xy plane facing +z. */
-export function disc(radius: number, segments: number) {
-  const positions = [0, 0, 0];
-  const uvs = [0.5, 0.5];
-  const index: number[] = [];
-  for (let i = 0; i <= segments; i++) {
-    const a = (i / segments) * Math.PI * 2;
-    positions.push(Math.cos(a) * radius, Math.sin(a) * radius, 0);
-    uvs.push((Math.cos(a) + 1) / 2, (Math.sin(a) + 1) / 2);
-    if (i) index.push(i, i + 1, 0);
-  }
-  return geometryFrom(positions, uvs, index);
-}
-
 /* ------------------------------------------------------------------ */
 /* Shaders                                                             */
 /* ------------------------------------------------------------------ */
 
 /**
- * Finish a shader from its file. Values worked out in script go in as
- * `#define`s, after the `#version` line if there is one, and each
- * `#include <name>` line is replaced by the chunk of that name.
+ * Finish a shader from its file: `header` (lines of `#define`s for values
+ * worked out in script) goes in after the `#version` line, and the
+ * `#include <display>` line is replaced by that chunk.
  */
-export function glsl(source: string, defines: Record<string, string | number> = {}, chunks: Record<string, string> = {}): string {
-  const lines = Object.entries(defines).map(([name, value]) => `#define ${name} ${value}\n`).join('');
-  const versioned = source.startsWith('#version');
-  const at = versioned ? source.indexOf('\n') + 1 : 0;
-  return (source.slice(0, at) + lines + source.slice(at)).replace(/#include <(\w+)>/g, (_, name) => chunks[name]);
+export function glsl(source: string, header: string, display: string): string {
+  const at = source.indexOf('\n') + 1;
+  return (source.slice(0, at) + header + source.slice(at)).replace('#include <display>', display);
 }
 
 /* ------------------------------------------------------------------ */
