@@ -1,6 +1,7 @@
 import { defineConfig } from 'astro/config';
 import shaders, { shippedUniformNames } from './tools/glsl.mjs';
 import glConstants from './tools/gl-constants.mjs';
+import earlyHints from './tools/early-hints.mjs';
 
 /*
  * The minifier shortens property names, which is only safe for names the
@@ -27,6 +28,7 @@ const KEPT_NAMES = [
 
 export default defineConfig({
   output: 'static',
+  integrations: [earlyHints],
   // Pages build to about.html rather than about/index.html, so they're served at /about without a trailing-slash redirect.
   // One small stylesheet: putting it in the page saves a round trip before anything can be drawn.
   build: { format: 'file', inlineStylesheets: 'always' },
