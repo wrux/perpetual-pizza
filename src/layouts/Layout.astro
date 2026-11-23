@@ -4,6 +4,10 @@ import photos from '../scripts/topping-photos.json';
 
 export interface Props {
   cover?: string;
+  /** The cover's width and height in pixels; covers are square. */
+  coverSize?: number;
+  /** What the cover shows, for people who can't see it. */
+  coverAlt?: string;
   description?: string;
   title?: string;
   /** The page's address, for its canonical link. */
@@ -71,12 +75,14 @@ const textures = [photos.crust, photos.cheeseDetail, ...Object.values(photos.top
 
 const {
   cover = defaultCover,
+  coverSize = 1080,
   description = defaultDescription,
   title = defaultTitle,
   path = '/',
   pageType = 'WebPage',
   pizza = false,
   noindex = false,
+  coverAlt = 'A pepperoni and mushroom pizza sitting on a bigger pizza, with a smaller pizza at its centre',
 } = Astro.props;
 
 const pageUrl = `${siteUrl}${path}`;
@@ -118,13 +124,13 @@ structuredData['@graph'].push({
 
     <meta property="og:type" content="website" />
     <meta property="og:site_name" content="Perpetual Pizza" />
-    <meta property="og:image:width" content="1080" />
-    <meta property="og:image:height" content="1080" />
+    <meta property="og:image:width" content={String(coverSize)} />
+    <meta property="og:image:height" content={String(coverSize)} />
     <meta property="og:title" content={title} />
     <meta property="og:description" content={description} />
     <meta property="og:url" content={pageUrl} />
     <meta property="og:image" content={new URL(cover, siteUrl).href} />
-    <meta property="og:image:alt" content="A pepperoni and mushroom pizza sitting on a bigger pizza, with a smaller pizza at its centre" />
+    <meta property="og:image:alt" content={coverAlt} />
     <meta name="twitter:card" content="summary_large_image" />
     <script type="application/ld+json" set:html={JSON.stringify(structuredData)} />
 

@@ -19,13 +19,13 @@ const pizzas2021 = [
 
 const looks = EFFECTS.map((e) => effectLabels[e]);
 
-// Pizzas inside pizzas for the hero: each level is the pizza mark with the next level inside it.
-// Six levels is enough that the smallest is a speck.
-const mark = '<svg viewBox="0 0 512 512"><use href="#logo"></use></svg>';
-const nest = Array.from({ length: 6 }).reduce<string>((inner) => `<div class="level">${mark}${inner}</div>`, '');
+// The live pizza, captured from the site.
+const heroAlt =
+  'A pizza with pepperoni, ham, mushrooms, black olives, jalapeños and basil, drawn in 3D, with a smaller copy of itself at its centre';
+
 ---
 
-<Layout title={title} description={description} path="/about" pageType="AboutPage">
+<Layout title={title} description={description} path="/about" pageType="AboutPage" cover="/about/pizza.jpg" coverSize={800} coverAlt={heroAlt}>
   <div class="glow" aria-hidden="true"></div>
 
   <header class="top">
@@ -39,7 +39,6 @@ const nest = Array.from({ length: 6 }).reduce<string>((inner) => `<div class="le
   <main class="about-page">
     <section class="hero">
       <div class="hero-text">
-        <p class="eyebrow">About</p>
         <h1>The pizza that never ends</h1>
         <p class="lead">
           Perpetual Pizza is a never ending digital pizza. The centre of every pizza is a smaller pizza, whose centre is
@@ -52,13 +51,14 @@ const nest = Array.from({ length: 6 }).reduce<string>((inner) => `<div class="le
         </p>
       </div>
 
-      <!--
-        The endless zoom in miniature, in CSS. Each level is the pizza mark with the next level, smaller and turned,
-        at its centre. One cycle grows the second level to the size the first started at, so the loop can't be seen.
-      -->
-      <div class="droste" aria-hidden="true">
-        <div class="zoom" set:html={nest} />
-      </div>
+      <img
+        class="hero-pizza"
+        src="/about/pizza.jpg"
+        width="800"
+        height="800"
+        fetchpriority="high"
+        alt={heroAlt}
+      />
     </section>
 
     <dl class="facts">
@@ -68,13 +68,12 @@ const nest = Array.from({ length: 6 }).reduce<string>((inner) => `<div class="le
         <dt>Inspired by</dt><dd>A looping pizza animation by <a href="https://www.sheepfilms.co.uk/">Sheep Films</a></dd>
       </div>
       <div><dt>Built with</dt><dd>WebGL2, drawn live in your browser</dd></div>
-      <div><dt>Price</dt><dd>Free, with no sign-up</dd></div>
+      <div><dt>Works on</dt><dd>Phones, tablets and computers, in any modern browser</dd></div>
       <div><dt>Source code</dt><dd><a href="https://github.com/wrux/perpetual-pizza">wrux/perpetual-pizza</a></dd></div>
     </dl>
 
     <section class="block" id="how">
       <div class="side">
-        <span class="num">01</span>
         <h2>How the endless zoom works</h2>
       </div>
       <div class="body">
@@ -83,14 +82,17 @@ const nest = Array.from({ length: 6 }).reduce<string>((inner) => `<div class="le
         </p>
         <ol class="steps">
           <li>
+            <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9" /><circle cx="12" cy="12" r="4.5" /><circle cx="12" cy="12" r="1" /></svg>
             <b>A pizza inside a pizza</b>
             <span>Each pizza has another, identical pizza sitting at its centre.</span>
           </li>
           <li>
+            <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5" /><path d="M15.5 15.5 21 21M10.5 8v5M8 10.5h5" /></svg>
             <b>The camera moves in</b>
             <span>The small pizza grows until it's exactly the size the big one was when the zoom began.</span>
           </li>
           <li>
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 12a8 8 0 1 1-2.34-5.66" /><path d="M20 4v5h-5" /></svg>
             <b>An invisible reset</b>
             <span>The scene quietly jumps back to the start. Every level is the same, so nobody can tell.</span>
           </li>
@@ -104,7 +106,6 @@ const nest = Array.from({ length: 6 }).reduce<string>((inner) => `<div class="le
 
     <section class="block">
       <div class="side">
-        <span class="num">02</span>
         <h2>Make your own pizza</h2>
       </div>
       <div class="body">
@@ -127,7 +128,6 @@ const nest = Array.from({ length: 6 }).reduce<string>((inner) => `<div class="le
 
     <section class="block">
       <div class="side">
-        <span class="num">03</span>
         <h2>The story</h2>
       </div>
       <div class="body">
@@ -151,9 +151,9 @@ const nest = Array.from({ length: 6 }).reduce<string>((inner) => `<div class="le
           <li>
             <span class="when">2026</span>
             <p>
-              The videos were retired and the pizza became a live 3D scene drawn in the browser, which is what made
-              customising it possible. Later that year the toppings were remade from photographs, and the site got its
-              own small WebGL2 renderer, which cut the first visit to about 235 KB.
+              The videos were replaced by a super-lightweight pizza engine that Callum wrote in WebGL2. The pizza is
+              drawn live in the browser, so everything about it can change: the toppings, speed, spin, camera and look.
+              The whole first visit is about 235 KB.
             </p>
           </li>
         </ol>
@@ -183,7 +183,6 @@ const nest = Array.from({ length: 6 }).reduce<string>((inner) => `<div class="le
 
     <section class="block">
       <div class="side">
-        <span class="num">04</span>
         <h2>Questions</h2>
       </div>
       <div class="body faq">
@@ -214,7 +213,6 @@ const nest = Array.from({ length: 6 }).reduce<string>((inner) => `<div class="le
 
     <section class="block">
       <div class="side">
-        <span class="num">05</span>
         <h2>Who made it</h2>
       </div>
       <div class="body">
@@ -381,15 +379,6 @@ const nest = Array.from({ length: 6 }).reduce<string>((inner) => `<div class="le
     padding: 4.5rem 0 3.5rem;
   }
 
-  .eyebrow {
-    margin: 0 0 0.75rem;
-    color: var(--crust);
-    font-size: 0.8rem;
-    font-weight: 700;
-    letter-spacing: 0.14em;
-    text-transform: uppercase;
-  }
-
   h1 {
     margin: 0 0 1.25rem;
     font-size: clamp(2.6rem, 6.5vw, 4.5rem);
@@ -404,73 +393,17 @@ const nest = Array.from({ length: 6 }).reduce<string>((inner) => `<div class="le
     color: #fffe;
   }
 
-  /* The endless zoom: a window onto pizzas inside pizzas. */
-  .droste {
-    position: relative;
+  /* A still of the live pizza, under a warm light. */
+  .hero-pizza {
     justify-self: center;
-    width: min(100%, 26rem);
-    aspect-ratio: 1;
-    border-radius: 50%;
-    overflow: hidden;
-    background: #e7a54f;
+    width: min(100%, 28rem);
+    height: auto;
+    border-radius: 2rem;
     box-shadow:
       0 0 0 1px #ffffff1a,
       0 0 0 12px #ffffff08,
       0 30px 80px #d0000040,
       0 20px 50px #0008;
-    /* Keeps the overflow clip round in Safari while things scale inside. */
-    isolation: isolate;
-  }
-
-  /* A soft shadow at the rim, so the window reads as a lens. */
-  .droste::after {
-    content: '';
-    position: absolute;
-    inset: 0;
-    border-radius: 50%;
-    box-shadow: inset 0 0 60px #140802a6;
-    pointer-events: none;
-  }
-
-  /*
-   * The zoom is 1 / 0.28 times the window, so its first nested pizza is exactly the window's size. One cycle scales
-   * it up by that factor (and turns it back by the 30° each level is turned), bringing the next level to that size.
-   */
-  .zoom {
-    position: absolute;
-    inset: -128.57%;
-    animation: zoom 9s linear infinite;
-  }
-
-  .zoom :global(.level) {
-    position: absolute;
-    inset: 0;
-  }
-
-  .zoom :global(.level .level) {
-    inset: 36%;
-    transform: rotate(30deg);
-  }
-
-  .zoom :global(svg) {
-    display: block;
-    width: 100%;
-    height: 100%;
-  }
-
-  /* Steps along an even, exponential zoom, so it feels the same speed all the way through. */
-  @keyframes zoom {
-    0% { transform: none; }
-    10% { transform: rotate(-3deg) scale(1.1358); }
-    20% { transform: rotate(-6deg) scale(1.2899); }
-    30% { transform: rotate(-9deg) scale(1.4651); }
-    40% { transform: rotate(-12deg) scale(1.6639); }
-    50% { transform: rotate(-15deg) scale(1.8898); }
-    60% { transform: rotate(-18deg) scale(2.1464); }
-    70% { transform: rotate(-21deg) scale(2.4378); }
-    80% { transform: rotate(-24deg) scale(2.7687); }
-    90% { transform: rotate(-27deg) scale(3.1445); }
-    100% { transform: rotate(-30deg) scale(3.5714); }
   }
 
   /* ---- Facts ----------------------------------------------------------- */
@@ -522,16 +455,6 @@ const nest = Array.from({ length: 6 }).reduce<string>((inner) => `<div class="le
     top: 6rem;
   }
 
-  .num {
-    display: block;
-    margin-bottom: 0.5rem;
-    color: var(--crust);
-    font-family: var(--round);
-    font-size: 0.9rem;
-    font-weight: 800;
-    font-variant-numeric: tabular-nums;
-  }
-
   h2 {
     margin: 0;
     font-size: clamp(1.6rem, 3vw, 2.1rem);
@@ -566,7 +489,6 @@ const nest = Array.from({ length: 6 }).reduce<string>((inner) => `<div class="le
     margin: 1.5rem 0;
     padding: 0;
     list-style: none;
-    counter-reset: step;
   }
 
   .steps li,
@@ -582,20 +504,18 @@ const nest = Array.from({ length: 6 }).reduce<string>((inner) => `<div class="le
     line-height: 1.5;
   }
 
-  .steps li::before {
-    counter-increment: step;
-    content: counter(step);
-    display: grid;
-    place-items: center;
-    width: 1.8rem;
-    height: 1.8rem;
+  .steps svg {
+    width: 2.25rem;
+    height: 2.25rem;
     margin-bottom: 0.4rem;
-    border-radius: 50%;
-    background: var(--primary);
-    color: #fff;
-    font-family: var(--round);
-    font-size: 0.85rem;
-    font-weight: 800;
+    padding: 0.45rem;
+    border-radius: 0.7rem;
+    background: #d0000026;
+    fill: none;
+    stroke: var(--crust);
+    stroke-width: 2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
   }
 
   .steps b,
@@ -799,17 +719,10 @@ const nest = Array.from({ length: 6 }).reduce<string>((inner) => `<div class="le
 
   .finale :global(svg) {
     width: 4.5rem;
-    animation: turn 24s linear infinite;
   }
 
   .finale h2 {
     max-width: 22rem;
-  }
-
-  @keyframes turn {
-    to {
-      transform: rotate(1turn);
-    }
   }
 
   .foot {
@@ -836,7 +749,7 @@ const nest = Array.from({ length: 6 }).reduce<string>((inner) => `<div class="le
       padding: 2.5rem 0 2.5rem;
     }
 
-    .droste {
+    .hero-pizza {
       grid-row: 1;
       width: min(72vw, 20rem);
     }
@@ -899,11 +812,6 @@ const nest = Array.from({ length: 6 }).reduce<string>((inner) => `<div class="le
   }
 
   @media (prefers-reduced-motion: reduce) {
-    .zoom,
-    .finale :global(svg) {
-      animation: none;
-    }
-
     .button,
     .gallery img {
       transition: none;
