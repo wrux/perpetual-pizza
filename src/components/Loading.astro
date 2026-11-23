@@ -6,7 +6,18 @@ import Logo from './Logo.astro';
   <Logo />
   <div aria-hidden="true"><div data-bar></div></div>
   <p data-caption>Preheating the oven</p>
+  <section class="fallback" aria-label="About this page">
+    <p>
+      <b>Perpetual Pizza</b> is a never ending digital pizza that zooms in forever. <span data-reason
+        >Your browser can't draw it: it needs JavaScript and WebGL2.</span
+      >
+    </p>
+    <p><a href="/about">Read about Perpetual Pizza</a></p>
+  </section>
 </div>
+
+<!-- Without JavaScript nothing will ever finish loading, so say so straight away. -->
+<noscript><style>.loading .fallback { display: block; } .loading > div, .loading [data-caption] { display: none; }</style></noscript>
 
 <style is:global>
   .loading {
@@ -57,6 +68,47 @@ import Logo from './Logo.astro';
     font-weight: 500;
     letter-spacing: 0.02em;
     color: #fff9;
+  }
+
+  /* Shown only when the pizza can't be drawn. */
+  .loading .fallback {
+    display: none;
+    max-width: 22rem;
+    margin: 0;
+    padding: 0 1.5rem;
+    text-align: center;
+    font-size: 0.9rem;
+    line-height: 1.55;
+    color: #fffc;
+  }
+
+  .loading .fallback p {
+    font: inherit;
+    letter-spacing: normal;
+    color: inherit;
+  }
+
+  .loading .fallback p + p {
+    margin-top: 0.75rem;
+  }
+
+  .loading .fallback a {
+    color: #fff;
+    font-weight: 600;
+    text-underline-offset: 0.2em;
+  }
+
+  .loading.failed .fallback {
+    display: block;
+  }
+
+  .loading.failed > div,
+  .loading.failed [data-caption] {
+    display: none;
+  }
+
+  .loading.failed svg {
+    animation: none;
   }
 
   @keyframes breathe {

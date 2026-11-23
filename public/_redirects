@@ -1,0 +1,17 @@
+# Old links, sent home for good. A permanent (301) redirect tells search engines to
+# pass whatever credit these addresses earned to the homepage.
+# The per-pizza video pages were retired when the pizza started being drawn live.
+/pizza / 301
+/pizza/ / 301
+/pizza/01 / 301
+/pizza/01/ / 301
+/pizza/02 / 301
+/pizza/02/ / 301
+/pizza/03 / 301
+/pizza/03/ / 301
+/pizza/04 / 301
+/pizza/04/ / 301
+/pizza/05 / 301
+/pizza/05/ / 301
+/pizza/06 / 301
+/pizza/06/ / 301

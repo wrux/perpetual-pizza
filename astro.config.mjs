@@ -25,13 +25,11 @@ const KEPT_NAMES = [
   ...['subarray', 'TEXTURE_MAX_ANISOTROPY_EXT', 'MAX_TEXTURE_MAX_ANISOTROPY_EXT'],
 ];
 
-// The per-pizza video pages are gone; send old links home.
-const oldPizzaPages = Object.fromEntries(['01', '02', '03', '04', '05', '06'].map((slug) => [`/pizza/${slug}`, '/']));
-
 export default defineConfig({
   output: 'static',
+  // Pages build to about.html rather than about/index.html, so they're served at /about without a trailing-slash redirect.
   // One small stylesheet: putting it in the page saves a round trip before anything can be drawn.
-  build: { inlineStylesheets: 'always' },
+  build: { format: 'file', inlineStylesheets: 'always' },
   vite: {
     plugins: [shaders, glConstants],
     build: {
@@ -49,8 +47,4 @@ export default defineConfig({
   },
   // The toolbar Astro adds in development sits over the look strip.
   devToolbar: { enabled: false },
-  redirects: {
-    '/pizza': '/',
-    ...oldPizzaPages,
-  },
 });
