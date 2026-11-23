@@ -4,25 +4,97 @@ import photos from '../scripts/topping-photos.json';
 
 export interface Props {
   cover?: string;
+  /** The cover's width and height in pixels; covers are square. */
+  coverSize?: number;
+  /** What the cover shows, for people who can't see it. */
+  coverAlt?: string;
   description?: string;
   title?: string;
+  /** The page's address, for its canonical link. */
+  path?: string;
+  /** What schema.org calls this page, such as AboutPage. */
+  pageType?: string;
+  /** Start fetching the pizza's pictures early. Only the page that draws the pizza wants this. */
+  pizza?: boolean;
+  /** Keep the page out of search results, as for the not-found page. */
+  noindex?: boolean;
 }
 
 const defaultCover = '/cover.jpg';
 const defaultTitle = 'Perpetual Pizza | The never ending digital pizza';
 const defaultDescription =
-  'Watch the never ending digital pizza spin hypnotize you into ordering a pizza.';
+  'Perpetual Pizza is a never ending digital pizza that zooms in forever. Choose the toppings, speed and look. A web toy by Callum Bonnyman (wrux).';
 const siteUrl = 'https://perpetual.pizza';
-const currentPath = Astro.url.pathname;
 
+/*
+ * Who made this and what it is, written out for search engines. Without it
+ * the page is little more than a canvas, and Google guesses at what
+ * "Perpetual Pizza" means.
+ */
+const author = {
+  '@type': 'Person',
+  '@id': 'https://wrux.com/#person',
+  name: 'Callum Bonnyman',
+  alternateName: 'wrux',
+  url: 'https://wrux.com',
+  sameAs: ['https://github.com/wrux'],
+};
+const structuredData: { '@context': string; '@graph': Record<string, unknown>[] } = {
+  '@context': 'https://schema.org',
+  '@graph': [
+    {
+      '@type': 'WebSite',
+      '@id': `${siteUrl}/#website`,
+      name: 'Perpetual Pizza',
+      alternateName: 'perpetual.pizza',
+      url: `${siteUrl}/`,
+      inLanguage: 'en',
+      author: { '@id': author['@id'] },
+      publisher: { '@id': author['@id'] },
+    },
+    {
+      '@type': 'WebApplication',
+      '@id': `${siteUrl}/#app`,
+      name: 'Perpetual Pizza',
+      url: `${siteUrl}/`,
+      description:
+        'A never ending digital pizza: the centre of every pizza is another pizza, so it zooms in forever. Visitors can change the toppings, speed, spin, camera and visual style (film, VHS, CRT, pixel and more), and share a link to their pizza.',
+      applicationCategory: 'EntertainmentApplication',
+      operatingSystem: 'Any web browser with WebGL2',
+      isAccessibleForFree: true,
+      image: `${siteUrl}/cover.jpg`,
+      author: { '@id': author['@id'] },
+      isPartOf: { '@id': `${siteUrl}/#website` },
+      codeRepository: 'https://github.com/wrux/perpetual-pizza',
+    },
+    author,
+  ],
+};
 // Every picture the pizza is built from, so the browser can fetch them while the script is still on its way.
 const textures = [photos.crust, photos.cheeseDetail, ...Object.values(photos.toppings).map((sheet) => sheet.file)].filter(Boolean);
 
 const {
   cover = defaultCover,
+  coverSize = 1080,
   description = defaultDescription,
   title = defaultTitle,
+  path = '/',
+  pageType = 'WebPage',
+  pizza = false,
+  noindex = false,
+  coverAlt = 'A pepperoni and mushroom pizza sitting on a bigger pizza, with a smaller pizza at its centre',
 } = Astro.props;
+
+const pageUrl = `${siteUrl}${path}`;
+structuredData['@graph'].push({
+  '@type': pageType,
+  '@id': `${pageUrl}#page`,
+  url: pageUrl,
+  name: title,
+  description,
+  isPartOf: { '@id': `${siteUrl}/#website` },
+  ...(pageType === 'AboutPage' ? { about: { '@id': `${siteUrl}/#app` } } : {}),
+});
 ---
 
 <!doctype html>
@@ -33,31 +105,39 @@ const {
 
     <title>{title}</title>
     <meta name="description" content={description} />
-    <meta name="robots" content="index,follow" />
-    <meta name="googlebot" content="index,follow" />
+    <meta name="author" content="Callum Bonnyman" />
+    <meta name="robots" content={noindex ? 'noindex' : 'index,follow'} />
     <meta name="google" content="nositelinkssearchbox" />
     <meta name="format-detection" content="telephone=no" />
-    <link rel="canonical" href={`${siteUrl}${currentPath}`} />
+    {!noindex && <link rel="canonical" href={pageUrl} />}
     <link rel="author" href="/humans.txt" />
 
     <!-- The .ico names its size so that browsers which can draw the SVG choose it instead. -->
     <link rel="icon" href="/favicon.ico" sizes="32x32" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <!-- Sized PNGs for search engines; Google asks for multiples of 48px. -->
+    <link rel="icon" type="image/png" sizes="48x48" href="/favicon-48x48.png" />
+    <link rel="icon" type="image/png" sizes="192x192" href="/android-chrome-192x192.png" />
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
     <link rel="manifest" href="/site.webmanifest" />
     <meta name="theme-color" content="#d00000" />
 
-    <meta property="og:image:width" content="1080" />
-    <meta property="og:image:height" content="1080" />
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="Perpetual Pizza" />
+    <meta property="og:image:width" content={String(coverSize)} />
+    <meta property="og:image:height" content={String(coverSize)} />
     <meta property="og:title" content={title} />
     <meta property="og:description" content={description} />
-    <meta property="og:url" content={`${siteUrl}${currentPath}`} />
-    <meta property="og:image" content={cover} />
+    <meta property="og:url" content={pageUrl} />
+    <meta property="og:image" content={new URL(cover, siteUrl).href} />
+    <meta property="og:image:alt" content={coverAlt} />
+    <meta name="twitter:card" content="summary_large_image" />
+    <script type="application/ld+json" set:html={JSON.stringify(structuredData)} />
 
-    {textures.map((href) => <link rel="preload" as="image" type="image/avif" href={href} />)}
-    <link rel="preload" as="image" href="/pizza/env.webp" />
+    {pizza && textures.map((href) => <link rel="preload" as="image" type="image/avif" href={href} />)}
+    {pizza && <link rel="preload" as="image" href="/pizza/env.webp" />}
   </head>
-  <body>
+  <body class:list={{ page: !pizza }}>
     <LogoSprite />
     <slot />
   </body>
@@ -74,7 +154,8 @@ const {
     }
   }
 
-  document.addEventListener(
+  // Only the pizza page has a fullscreen button, and only there does F mean fullscreen.
+  if (fullscreenButton) document.addEventListener(
     'keydown',
     (event) => {
       const target = event.target as HTMLElement | null;
@@ -112,6 +193,16 @@ const {
     box-sizing: border-box;
   }
 
+  /* Read by screen readers and search engines, kept off screen so the pizza has the page to itself. */
+  .visually-hidden {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+
   body {
     width: 100vw;
     height: 100vh;
@@ -122,5 +213,12 @@ const {
     color: #fff;
     font: 1em/1.6 system-ui, sans-serif;
     -webkit-font-smoothing: antialiased;
+  }
+
+  /* Pages of words, rather than the pizza, scroll like any other page. */
+  body.page {
+    width: auto;
+    height: auto;
+    overflow: visible;
   }
 </style>

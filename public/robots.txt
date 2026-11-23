@@ -1,0 +1,6 @@
+# Search engines and AI assistants are welcome to read this site, so they can describe it accurately.
+User-agent: *
+Content-Signal: search=yes, ai-input=yes
+Allow: /
+
+Sitemap: https://perpetual.pizza/sitemap.xml

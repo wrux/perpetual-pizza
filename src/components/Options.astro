@@ -6,6 +6,7 @@ const tabs = [
   { id: 'toppings', label: 'Toppings' },
   { id: 'motion', label: 'Motion' },
   { id: 'camera', label: 'Camera' },
+  { id: 'about', label: 'About' },
 ];
 ---
 
@@ -141,6 +142,23 @@ const tabs = [
         <span class="label">Lens <output data-output="fov"></output></span>
         <input type="range" data-key="fov" min="25" max="80" step="1" />
       </label>
+    </section>
+
+    <!-- Plain words about the site, for people and for search engines, which otherwise find only a canvas. -->
+    <section id="pane-about" class="about" role="tabpanel" aria-labelledby="tab-about" data-pane="about" hidden>
+      <p>
+        <b>Perpetual Pizza</b> is a never ending digital pizza. The centre of every pizza is another pizza, so it
+        zooms in forever. Pick the toppings, speed, spin, camera and look, then share a link to your pizza.
+      </p>
+      <p>
+        Made by <a href="https://wrux.com" rel="author">Callum Bonnyman (wrux)</a>, who built it when the .pizza domain
+        launched. The idea comes from a looping pizza GIF by <a href="https://www.sheepfilms.co.uk/">Sheep Films</a>.
+      </p>
+      <p>
+        The pizza is drawn live in your browser with WebGL, and the
+        <a href="https://github.com/wrux/perpetual-pizza">source code is on GitHub</a>.
+      </p>
+      <p><a href="/about">How it works, and the full story</a></p>
     </section>
   </form>
 </aside>
@@ -544,6 +562,25 @@ const tabs = [
       opacity: 0;
       transform: translateY(4px);
     }
+  }
+
+  .about {
+    max-width: 38rem;
+    line-height: 1.55;
+  }
+
+  .about p {
+    margin: 0;
+  }
+
+  .about p + p {
+    margin-top: 0.6rem;
+    color: var(--dim);
+  }
+
+  .about a {
+    color: #fff;
+    text-underline-offset: 0.2em;
   }
 
   /* ---- Fields ---------------------------------------------------------- */

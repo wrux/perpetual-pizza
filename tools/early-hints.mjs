@@ -13,7 +13,20 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-const pages = (dir) => fs.readdirSync(dir, { withFileTypes: true }).flatMap((e) => (e.isDirectory() ? pages(path.join(dir, e.name)) : e.name === 'index.html' ? [path.join(dir, e.name)] : []));
+// Every built page. Pages build as about.html as well as index.html, and the not-found page is
+// left out: it can answer any address, so there's no one address to hint it for.
+const pages = (dir) =>
+  fs
+    .readdirSync(dir, { withFileTypes: true })
+    .flatMap((e) => (e.isDirectory() ? pages(path.join(dir, e.name)) : e.name.endsWith('.html') && e.name !== '404.html' ? [path.join(dir, e.name)] : []));
+
+/** The address a built page is served at: /index.html at /, /about.html at /about. */
+function address(file, out) {
+  const parts = path.relative(out, file).split(path.sep);
+  const name = parts.pop();
+  if (name !== 'index.html') parts.push(name.replace(/\.html$/, ''));
+  return '/' + parts.join('/') + (name === 'index.html' && parts.length ? '/' : '');
+}
 
 const attribute = (tag, name) => tag.match(new RegExp(`\\b${name}="([^"]*)"`))?.[1];
 
@@ -45,8 +58,7 @@ export default {
       const rules = pages(out).flatMap((file) => {
         const found = links(fs.readFileSync(file, 'utf8'), out);
         if (!found.length) return [];
-        const url = '/' + path.relative(out, path.dirname(file)).split(path.sep).join('/');
-        return [`${url === '/' ? '/' : url + '/'}\n${found.map((link) => `  Link: ${link}`).join('\n')}`];
+        return [`${address(file, out)}\n${found.map((link) => `  Link: ${link}`).join('\n')}`];
       });
       if (rules.length) fs.appendFileSync(path.join(out, '_headers'), `\n# What each page needs, sent ahead of it. Written by tools/early-hints.mjs.\n${rules.join('\n')}\n`);
     },
