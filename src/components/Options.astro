@@ -3,10 +3,9 @@ import Logo from './Logo.astro';
 import { EFFECTS, effectLabels } from '../scripts/effects';
 
 const tabs = [
-  { id: 'look', label: 'Look' },
+  { id: 'toppings', label: 'Toppings' },
   { id: 'motion', label: 'Motion' },
   { id: 'camera', label: 'Camera' },
-  { id: 'toppings', label: 'Toppings' },
 ];
 ---
 
@@ -44,13 +43,25 @@ const tabs = [
   </nav>
 </div>
 
-<button type="button" id="toggle-options" class="chrome glass launcher" title="Customise (O)" aria-expanded="false" aria-controls="options">
-  <svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
-    <path d="M4 7h10M18 7h2M4 12h2M10 12h10M4 17h8M16 17h4" />
-    <circle cx="16" cy="7" r="2" /><circle cx="8" cy="12" r="2" /><circle cx="14" cy="17" r="2" />
-  </svg>
-  Customise
-</button>
+<!-- Always on show with the rest of the chrome: every look as a small picture, and the way into the settings. -->
+<div class="chrome glass bar">
+  <div class="looks" role="radiogroup" aria-label="Look">
+    {
+      EFFECTS.map((e) => (
+        <label class="look" data-tip={effectLabels[e]}>
+          <input type="radio" name="effect" value={e} data-key="effect" aria-label={effectLabels[e]} />
+          <span class="swatch" data-look-preview={e} />
+        </label>
+      ))
+    }
+  </div>
+  <button type="button" id="toggle-options" title="Customise (O)" aria-label="Customise" aria-expanded="false" aria-controls="options">
+    <svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+      <path d="M4 7h10M18 7h2M4 12h2M10 12h10M4 17h8M16 17h4" />
+      <circle cx="16" cy="7" r="2" /><circle cx="8" cy="12" r="2" /><circle cx="14" cy="17" r="2" />
+    </svg>
+  </button>
+</div>
 
 <aside id="options" class="glass dock" role="dialog" aria-labelledby="options-title">
   <header>
@@ -80,18 +91,27 @@ const tabs = [
   </header>
 
   <form autocomplete="off">
-    <section id="pane-look" role="tabpanel" aria-labelledby="tab-look" data-pane="look">
-      <div class="looks" role="radiogroup" aria-label="Shader">
-        {
-          EFFECTS.map((e) => (
-            <label class="look">
-              <input type="radio" name="effect" value={e} data-key="effect" />
-              <span class="swatch" data-look-preview={e} aria-hidden="true" />
-              {effectLabels[e]}
-            </label>
-          ))
-        }
-      </div>
+    <section id="pane-toppings" class="grid" role="tabpanel" aria-labelledby="tab-toppings" data-pane="toppings">
+      {
+        (
+          [
+            ['pepperoni', 'Pepperoni'],
+            ['mushroom', 'Mushroom'],
+            ['basil', 'Basil'],
+            ['olive', 'Olives'],
+            ['jalapeno', 'Jalapeño'],
+            ['ham', 'Ham'],
+          ] as const
+        ).map(([key, label]) => (
+          <label class="field topping">
+            <span class="icon" data-topping-preview={key} aria-hidden="true" />
+            <span class="label">
+              {label} <output data-output={`toppings.${key}`} />
+            </span>
+            <input type="range" data-key={`toppings.${key}`} min="0" max="40" step="1" />
+          </label>
+        ))
+      }
     </section>
 
     <section id="pane-motion" class="grid" role="tabpanel" aria-labelledby="tab-motion" data-pane="motion" hidden>
@@ -121,29 +141,6 @@ const tabs = [
         <span class="label">Lens <output data-output="fov"></output></span>
         <input type="range" data-key="fov" min="25" max="80" step="1" />
       </label>
-    </section>
-
-    <section id="pane-toppings" class="grid" role="tabpanel" aria-labelledby="tab-toppings" data-pane="toppings" hidden>
-      {
-        (
-          [
-            ['pepperoni', 'Pepperoni'],
-            ['mushroom', 'Mushroom'],
-            ['basil', 'Basil'],
-            ['olive', 'Olives'],
-            ['jalapeno', 'Jalapeño'],
-            ['ham', 'Ham'],
-          ] as const
-        ).map(([key, label]) => (
-          <label class="field topping">
-            <span class="icon" data-topping-preview={key} aria-hidden="true" />
-            <span class="label">
-              {label} <output data-output={`toppings.${key}`} />
-            </span>
-            <input type="range" data-key={`toppings.${key}`} min="0" max="40" step="1" />
-          </label>
-        ))
-      }
     </section>
   </form>
 </aside>
@@ -271,7 +268,8 @@ const tabs = [
     padding: 0.25rem;
   }
 
-  .toolbar button {
+  .toolbar button,
+  .bar button {
     display: grid;
     place-items: center;
     width: 2.5rem;
@@ -282,15 +280,15 @@ const tabs = [
       transform 0.12s;
   }
 
-  .toolbar button:hover {
+  :is(.toolbar, .bar) button:hover {
     background: var(--tint-2);
   }
 
-  .toolbar button:active {
+  :is(.toolbar, .bar) button:active {
     transform: scale(0.94);
   }
 
-  .toolbar svg {
+  :is(.toolbar, .bar) svg {
     width: 1.2rem;
   }
 
@@ -306,41 +304,105 @@ const tabs = [
     }
   }
 
-  /* ---- Launcher -------------------------------------------------------- */
-  .launcher {
+  /* ---- Bottom bar: the looks, and the way into the settings ------------- */
+  .bar {
     left: 50%;
     bottom: calc(1.25rem + env(safe-area-inset-bottom));
     display: flex;
     align-items: center;
-    gap: 0.55em;
-    height: 2.9rem;
-    padding: 0 1.35rem 0 1.1rem;
-    font-size: 0.9rem;
-    font-weight: 700;
+    gap: 0.2rem;
+    max-width: calc(100vw - 1.5rem);
+    padding: 0.25rem;
     transform: translateX(-50%);
     transition:
       opacity 0.22s,
-      transform 0.32s var(--ease),
-      background 0.2s;
+      transform 0.32s var(--ease);
   }
 
-  .launcher svg {
-    width: 1.15rem;
-  }
-
-  .launcher:is(:hover, :focus-visible) {
-    background: var(--primary);
-  }
-
-  .launcher:active {
-    transform: translateX(-50%) scale(0.97);
-  }
-
-  /* While the dock is up the launcher drops out of the way. */
-  .options-open .launcher {
+  /* While the dock is up the bar drops out of the way. */
+  .options-open .bar {
     opacity: 0;
     transform: translate(-50%, 1.5rem);
     pointer-events: none;
+  }
+
+  /* A row of round pictures, one per look. It scrolls sideways if the screen is too narrow for them all. */
+  .looks {
+    display: flex;
+    gap: 0.3rem;
+    min-width: 0;
+    padding: 0.2rem;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+
+  .look {
+    position: relative;
+    flex: none;
+    cursor: pointer;
+  }
+
+  /* Radio buttons are covered by what they pick: invisible, but still there to click and focus. */
+  :is(.look, .segment) input {
+    position: absolute;
+    inset: 0;
+    margin: 0;
+    opacity: 0;
+    cursor: pointer;
+  }
+
+  /* A render of the look once there is one, a dark disc until then. */
+  .swatch {
+    display: block;
+    width: 2.25rem;
+    height: 2.25rem;
+    border-radius: 50%;
+    background: var(--preview, #2a1208) center / cover;
+    box-shadow: inset 0 0 0 1px var(--edge);
+    transition:
+      transform 0.16s,
+      box-shadow 0.16s;
+  }
+
+  .look:hover .swatch {
+    transform: scale(1.08);
+  }
+
+  :checked ~ .swatch {
+    box-shadow: 0 0 0 2px #fff;
+  }
+
+  /* With a pointer that can hover, each look names itself in a bubble above it. */
+  @media (hover: hover) {
+    /* Screens with a mouse are wide enough for the whole row, so nothing needs clipping for scrolling. */
+    .looks {
+      overflow: visible;
+    }
+
+    .look::after {
+      content: attr(data-tip);
+      position: absolute;
+      bottom: calc(100% + 0.75rem);
+      left: 50%;
+      padding: 0.3em 0.75em;
+      border: 1px solid var(--edge);
+      border-radius: 5rem;
+      background: #120803e6;
+      font-size: 0.72rem;
+      font-weight: 600;
+      white-space: nowrap;
+      transform: translate(-50%, 0.3rem);
+      opacity: 0;
+      pointer-events: none;
+      transition:
+        opacity 0.15s,
+        transform 0.15s;
+    }
+
+    .look:is(:hover, :has(:focus-visible))::after {
+      transform: translateX(-50%);
+      opacity: 1;
+    }
   }
 
   /* ---- Dock ------------------------------------------------------------ */
@@ -482,67 +544,6 @@ const tabs = [
       opacity: 0;
       transform: translateY(4px);
     }
-  }
-
-  /* ---- Looks: picture tiles -------------------------------------------- */
-  .looks {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(4.6rem, 1fr));
-    gap: 0.5rem;
-  }
-
-  .look {
-    position: relative;
-    display: grid;
-    justify-items: center;
-    gap: 0.35rem;
-    padding: 0.4rem 0.2rem 0.45rem;
-    border-radius: 0.8rem;
-    color: #fffc;
-    font-size: 0.72rem;
-    font-weight: 600;
-    white-space: nowrap;
-    cursor: pointer;
-    transition: background 0.15s;
-  }
-
-  .look:hover {
-    background: var(--tint);
-  }
-
-  .look:has(:checked) {
-    color: #fff;
-  }
-
-  /* Radio buttons are covered by what they pick: invisible, but still there to click and focus. */
-  :is(.look, .segment) input {
-    position: absolute;
-    inset: 0;
-    margin: 0;
-    opacity: 0;
-    cursor: pointer;
-  }
-
-  /* A render of the look once there is one, a dark tile until then. */
-  .swatch {
-    width: 3.1rem;
-    height: 3.1rem;
-    border-radius: 0.7rem;
-    background: var(--preview, #2a1208) center / cover;
-    box-shadow:
-      inset 0 0 0 1px var(--edge),
-      0 2px 6px #0004;
-    transition:
-      transform 0.16s,
-      box-shadow 0.16s;
-  }
-
-  :checked ~ .swatch {
-    box-shadow:
-      inset 0 0 0 2px var(--primary),
-      0 0 0 2px #d0000073,
-      0 2px 6px #0004;
-    transform: translateY(-1px);
   }
 
   /* ---- Fields ---------------------------------------------------------- */
@@ -802,9 +803,9 @@ const tabs = [
       padding-top: 1.1rem;
     }
 
-    .looks {
-      grid-template-columns: repeat(4, 1fr);
-      gap: 0.6rem 0.4rem;
+    .swatch {
+      width: 2rem;
+      height: 2rem;
     }
 
     .grid:not([hidden]) {
@@ -853,6 +854,7 @@ const tabs = [
     .dock,
     .dock form,
     [role='tabpanel'],
+    .bar,
     .swatch,
     .toolbar button {
       transition: none;

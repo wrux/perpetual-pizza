@@ -16,17 +16,21 @@ import Options from './Options.astro';
   const caption = loader?.querySelector<HTMLElement>('[data-caption]');
   const bar = loader?.querySelector<HTMLElement>('[data-bar]');
 
-  const pizza = await createPizza(canvas, optionsFromUrl(), (text, fraction) => {
+  const progress = (text: string, fraction: number) => {
     if (caption) caption.textContent = text;
     if (bar) bar.style.transform = `scaleX(${fraction})`;
-  });
-  initPanel(pizza);
+  };
+  const pizza = await createPizza(canvas, optionsFromUrl(), progress);
+  progress('Plating up', 0.9);
+  await initPanel(pizza);
+  progress('Ready', 1);
 
-  // Lift the loader once the first frame is on screen.
-  requestAnimationFrame(() => {
-    loader?.classList.add('done');
-    loader?.addEventListener('transitionend', () => loader.remove(), { once: true });
-  });
+  // Lift the loader only once everything is drawn and a couple of frames have run smoothly behind it.
+  const frame = () => new Promise(requestAnimationFrame);
+  await frame();
+  await frame();
+  loader?.classList.add('done');
+  loader?.addEventListener('transitionend', () => loader.remove(), { once: true });
 
   // Handy for poking at from the console.
   (window as unknown as { pizza: typeof pizza }).pizza = pizza;

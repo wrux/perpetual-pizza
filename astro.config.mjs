@@ -23,6 +23,8 @@ export default defineConfig({
   // One small stylesheet: putting it in the page saves a round trip before anything can be drawn.
   build: { inlineStylesheets: 'always' },
   vite: { plugins: [shaders] },
+  // The toolbar Astro adds in development sits over the look strip.
+  devToolbar: { enabled: false },
   redirects: {
     '/pizza': '/',
     ...oldPizzaPages,

@@ -26,6 +26,8 @@ import {
   type TextureOptions,
   type Vec3,
 } from './gl';
+import { clamp01, makeNoise, mix, mulberry32, normalMap, smoothstep, type Maps } from './paint';
+import type { PaintJob } from './paint.worker';
 import { createRenderer, srgb, type Item, type Material, type Mesh, type View } from './renderer';
 import photoManifest from './topping-photos.json';
 
@@ -102,376 +104,6 @@ export interface PizzaController {
   /** Render small PNG data URLs of every look and every topping, for the options panel. */
   renderPreviews(size?: number): Promise<Previews>;
   dispose(): void;
-}
-
-/* ------------------------------------------------------------------ */
-/* Random + noise                                                      */
-/* ------------------------------------------------------------------ */
-
-type Rng = () => number;
-
-function mulberry32(seed: number): Rng {
-  let a = seed >>> 0;
-  return () => {
-    a = (a + 0x6d2b79f5) >>> 0;
-    let t = a;
-    t = Math.imul(t ^ (t >>> 15), t | 1);
-    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-  };
-}
-
-/**
- * 2D value noise, fractal sum and cellular (Worley) noise over one random table.
- * `period` is the table size and must be a power of two. Passing `px` / `py`
- * (whole numbers of noise cells) makes a call repeat exactly over that span,
- * for textures that wrap around a ring or tube.
- */
-function makeNoise(seed: number, period = 256) {
-  const mask = period - 1;
-  const table = new Float32Array(period * period);
-  const rng = mulberry32(seed);
-  for (let i = 0; i < table.length; i++) table[i] = rng();
-  const at = (x: number, y: number) => table[(y & mask) * period + (x & mask)];
-  const wrap = (i: number, p: number) => (p ? i - p * Math.floor(i / p) : i);
-  const smooth = (t: number) => t * t * (3 - 2 * t);
-
-  const noise = (x: number, y: number, px = 0, py = 0) => {
-    const xi = Math.floor(x);
-    const yi = Math.floor(y);
-    const tx = smooth(x - xi);
-    const ty = smooth(y - yi);
-    const x0 = wrap(xi, px);
-    const x1 = wrap(xi + 1, px);
-    const y0 = wrap(yi, py);
-    const y1 = wrap(yi + 1, py);
-    const a = at(x0, y0);
-    const b = at(x1, y0);
-    const c = at(x0, y1);
-    const d = at(x1, y1);
-    return a + (b - a) * tx + (c - a) * ty + (a - b - c + d) * tx * ty;
-  };
-
-  const fbm = (x: number, y: number, octaves = 5, gain = 0.5, px = 0, py = 0) => {
-    let sum = 0;
-    let amp = 1;
-    let norm = 0;
-    let f = 1;
-    for (let i = 0; i < octaves; i++) {
-      sum += noise(x * f, y * f, px * f, py * f) * amp;
-      norm += amp;
-      amp *= gain;
-      f *= 2;
-    }
-    return sum / norm;
-  };
-
-  /**
-   * Cellular noise: distance to the nearest (`f1`) and second nearest (`f2`)
-   * scattered point, plus a random `id` for the nearest one. The result object
-   * is reused between calls, so read it before calling again.
-   */
-  const cell = { f1: 0, f2: 0, id: 0 };
-  const cells = (x: number, y: number, px = 0, py = 0) => {
-    const xi = Math.floor(x);
-    const yi = Math.floor(y);
-    let f1 = 9;
-    let f2 = 9;
-    let id = 0;
-    for (let j = -1; j <= 1; j++) {
-      for (let i = -1; i <= 1; i++) {
-        const cx = xi + i;
-        const cy = yi + j;
-        const wx = wrap(cx, px);
-        const wy = wrap(cy, py);
-        const dx = cx + at(wx, wy) - x;
-        const dy = cy + at(wx + 37, wy + 91) - y;
-        const d = dx * dx + dy * dy;
-        if (d < f1) {
-          f2 = f1;
-          f1 = d;
-          id = at(wx + 113, wy + 57);
-        } else if (d < f2) f2 = d;
-      }
-    }
-    cell.f1 = Math.sqrt(f1);
-    cell.f2 = Math.sqrt(f2);
-    cell.id = id;
-    return cell;
-  };
-
-  return { noise, fbm, cells };
-}
-
-const clamp01 = (v: number) => (v < 0 ? 0 : v > 1 ? 1 : v);
-const smoothstep = (a: number, b: number, v: number) => {
-  const t = clamp01((v - a) / (b - a));
-  return t * t * (3 - 2 * t);
-};
-const mix = (a: number, b: number, t: number) => a + (b - a) * t;
-
-type Rgb = [number, number, number];
-const rgb = (hex: string): Rgb => {
-  const n = parseInt(hex.slice(1), 16);
-  return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
-};
-const mixRgb = (a: Rgb, b: Rgb, t: number): Rgb => [mix(a[0], b[0], t), mix(a[1], b[1], t), mix(a[2], b[2], t)];
-
-interface PaintOptions {
-  /** Slope of the normal map per unit of height difference between neighbouring texels. */
-  normal?: number;
-  /** Whether the texture repeats along u / v, so the normal map has no seam there. */
-  wrapU?: boolean;
-  wrapV?: boolean;
-}
-
-/**
- * Tangent-space normal map of a height field. Unlike a bump map this is
- * filtered like any other texture, so it stays smooth when magnified.
- */
-function normalCanvas(heights: Float32Array, w: number, h: number, strength: number, wrapU: boolean, wrapV: boolean) {
-  const c = document.createElement('canvas');
-  c.width = w;
-  c.height = h;
-  const ctx = c.getContext('2d')!;
-  const normal = ctx.createImageData(w, h);
-  const edge = (i: number, n: number, wraps: boolean) => (wraps ? (i + n) % n : Math.min(Math.max(i, 0), n - 1));
-  for (let y = 0; y < h; y++) {
-    const up = edge(y - 1, h, wrapV) * w;
-    const down = edge(y + 1, h, wrapV) * w;
-    for (let x = 0; x < w; x++) {
-      const dx = (heights[y * w + edge(x + 1, w, wrapU)] - heights[y * w + edge(x - 1, w, wrapU)]) * strength;
-      // Canvas rows run top-down, texture v runs bottom-up.
-      const dy = (heights[down + x] - heights[up + x]) * strength;
-      const inv = 1 / Math.sqrt(dx * dx + dy * dy + 1);
-      const i = (y * w + x) * 4;
-      normal.data[i] = (-dx * inv * 0.5 + 0.5) * 255;
-      normal.data[i + 1] = (dy * inv * 0.5 + 0.5) * 255;
-      normal.data[i + 2] = (inv * 0.5 + 0.5) * 255;
-      normal.data[i + 3] = 255;
-    }
-  }
-  ctx.putImageData(normal, 0, 0);
-  return c;
-}
-
-/** Per-pixel painter producing a colour canvas plus normal and roughness canvases. */
-function paint(
-  w: number,
-  h: number,
-  shade: (u: number, v: number) => { color: Rgb; height?: number; rough?: number },
-  { normal: strength = 2, wrapU = false, wrapV = false }: PaintOptions = {},
-) {
-  const mk = () => {
-    const c = document.createElement('canvas');
-    c.width = w;
-    c.height = h;
-    return c;
-  };
-  const colorC = mk();
-  const roughC = mk();
-  const color = colorC.getContext('2d')!.createImageData(w, h);
-  const rough = roughC.getContext('2d')!.createImageData(w, h);
-  const heightData = new Float32Array(w * h);
-  for (let y = 0; y < h; y++) {
-    for (let x = 0; x < w; x++) {
-      const i = (y * w + x) * 4;
-      const s = shade(x / w, y / h);
-      color.data[i] = s.color[0];
-      color.data[i + 1] = s.color[1];
-      color.data[i + 2] = s.color[2];
-      color.data[i + 3] = 255;
-      heightData[y * w + x] = clamp01(s.height ?? 0.5);
-      const rv = Math.round(clamp01(s.rough ?? 0.5) * 255);
-      rough.data[i] = rough.data[i + 1] = rough.data[i + 2] = rv;
-      rough.data[i + 3] = 255;
-    }
-  }
-
-  colorC.getContext('2d')!.putImageData(color, 0, 0);
-  const normalC = normalCanvas(heightData, w, h, strength, wrapU, wrapV);
-  roughC.getContext('2d')!.putImageData(rough, 0, 0);
-
-  return {
-    /** The painted colour canvas. */
-    canvas: colorC,
-    normal: normalC,
-    rough: roughC,
-    heightData,
-    width: w,
-    height: h,
-  };
-}
-
-/* ------------------------------------------------------------------ */
-/* Textures                                                            */
-/* ------------------------------------------------------------------ */
-
-const SAUCE = rgb('#9e2010');
-const SAUCE_DARK = rgb('#6f150a');
-const SAUCE_LIGHT = rgb('#c9471f');
-const CHEESE_CREAM = rgb('#f0d590');
-const CHEESE_GOLD = rgb('#e6ab45');
-const CHEESE_OIL = rgb('#e8a03f');
-const CHEESE_THIN = rgb('#df7f36');
-const CHEESE_TOAST = rgb('#cc8530');
-const CHEESE_BROWN = rgb('#9a541c');
-const CHEESE_CHAR = rgb('#472410');
-const HERB = rgb('#38491b');
-
-const CHEESE_SIZE = 1024;
-
-/**
- * With a photographed cheese surface laid over it, the painted cheese only
- * needs to say where the cheese is and how thick: the photo brings its own
- * browning and flecks, and two sets would fight.
- */
-const PHOTO_CHEESE = Boolean((photoManifest as { cheeseDetail?: string | null }).cheeseDetail);
-
-/**
- * Planar top-of-pizza texture: melted mozzarella over tomato sauce. The cheese
- * stops short of the crust, thins to orange where the sauce shows through, and
- * blisters into bubbles whose tops brown.
- */
-function cheeseTexture(seed: number) {
-  const n = makeNoise(seed);
-  const n2 = makeNoise(seed + 11);
-  return paint(
-    CHEESE_SIZE,
-    CHEESE_SIZE,
-    (u, v) => {
-      const x = u * 9;
-      const y = v * 9;
-      // Distance from centre 0..1 (the ring spans the texture square).
-      const r = Math.hypot(u - 0.5, v - 0.5) * 2;
-      // The corners of the square are never seen.
-      if (r > 0.98) return { color: SAUCE_DARK, height: 0.16, rough: 0.4 };
-
-      // Warp everything a little so melt edges and bubbles are organic rather than blobby.
-      const warpX = n.fbm(x * 1.3 + 3, y * 1.3 + 7, 2) - 0.5;
-      const warpY = n.fbm(x * 1.3 + 31, y * 1.3 + 17, 2) - 0.5;
-      const wx = x + warpX * 1.4;
-      const wy = y + warpY * 1.4;
-
-      // How thick the cheese is here: 0 is bare sauce. A ragged band next to the crust stays bare.
-      const cover = n.fbm(wx * 0.8, wy * 0.8, 4);
-      const rim = smoothstep(0.8, 0.88, r + warpX * 0.12);
-      const thick = clamp01((cover - 0.31) / 0.25) * (1 - rim);
-      const cheese = smoothstep(0, 0.22, thick);
-
-      // Big blisters. Only some cells bubble, and only the liveliest of those brown.
-      const big = n2.cells(x * 2.4 + warpX * 0.5, y * 2.4 + warpY * 0.5);
-      const bigId = big.id;
-      const reach = big.f1 / (0.28 + bigId * 0.34);
-      const dome = clamp01(1 - reach * reach) * smoothstep(0.3, 0.42, bigId) * thick;
-      const brown = PHOTO_CHEESE ? 0 : smoothstep(0.2, 0.85, dome) * smoothstep(0.52, 0.88, bigId);
-      const scorch = PHOTO_CHEESE ? 0 : smoothstep(0.65, 1, dome) * smoothstep(0.8, 0.97, bigId);
-      // Small blisters in between.
-      const little = n2.cells(x * 6 + 40 + warpX, y * 6 + 9 + warpY);
-      const pimple = clamp01(1 - (little.f1 / 0.42) ** 2) * (little.id > 0.5 ? 1 : 0) * thick;
-
-      const melt = n.fbm(wx * 2.2 + 50, wy * 2.2 + 60, 3);
-      const grain = n2.fbm(x * 22 + 11, y * 22 + 4, 2);
-      const toasty = smoothstep(0.5, 0.75, n2.fbm(wx * 0.9 + 21, wy * 0.9 + 13, 3));
-      // Orange oil pools in the valleys between bubbles.
-      const oil = (1 - dome) * smoothstep(0.45, 0.72, melt) * thick;
-
-      let cheeseColor = mixRgb(CHEESE_CREAM, CHEESE_GOLD, clamp01(smoothstep(0.3, 0.7, melt) * 0.7 + toasty * 0.3));
-      cheeseColor = mixRgb(cheeseColor, CHEESE_OIL, oil * 0.5);
-      cheeseColor = mixRgb(cheeseColor, CHEESE_THIN, (1 - smoothstep(0.1, 0.75, thick)) * 0.85);
-      cheeseColor = mixRgb(cheeseColor, CHEESE_TOAST, PHOTO_CHEESE ? 0 : clamp01(brown * 0.8 + pimple * 0.35 + toasty * 0.2));
-      cheeseColor = mixRgb(cheeseColor, CHEESE_BROWN, brown * brown * 0.75);
-      cheeseColor = mixRgb(cheeseColor, CHEESE_CHAR, scorch * 0.7);
-
-      // Sauce, wherever the cheese lets it show.
-      let color = cheeseColor;
-      let pulp = 0.5;
-      if (cheese < 1) {
-        pulp = n2.fbm(x * 5 + 5, y * 5 + 5, 3);
-        let sauceColor = mixRgb(SAUCE, SAUCE_DARK, smoothstep(0.35, 0.7, pulp));
-        sauceColor = mixRgb(sauceColor, SAUCE_LIGHT, smoothstep(0.62, 0.8, n.fbm(x * 9 + 2, y * 9 + 8, 2)) * 0.6);
-        color = mixRgb(sauceColor, cheeseColor, cheese);
-      }
-
-      // Sparse oregano flecks.
-      const fleck = n.cells(x * 16 + 7, y * 16 + 3);
-      if (!PHOTO_CHEESE && fleck.id > 0.95 && fleck.f1 < 0.1 + fleck.id * 0.06) color = mixRgb(color, HERB, 0.75);
-
-      // Fine grain, and a soft shadow where the top tucks under the crust.
-      const shadeBy = (0.94 + grain * 0.12) * (1 - smoothstep(0.86, 0.98, r) * 0.35);
-      color = [color[0] * shadeBy, color[1] * shadeBy, color[2] * shadeBy];
-
-      const height =
-        cheese * (0.36 + thick * 0.1 + melt * 0.1 + dome * 0.3 + pimple * 0.07) +
-        (1 - cheese) * (0.16 + pulp * 0.06) +
-        grain * 0.02;
-      const rough = mix(0.36, 0.56, cheese) - oil * 0.2 + brown * 0.2 + pimple * 0.05;
-      return { color, height, rough };
-    },
-    { normal: 5 },
-  );
-}
-
-const CRUST_GOLD = rgb('#cf9247');
-const CRUST_TOAST = rgb('#9c5a24');
-const CRUST_FLOUR = rgb('#e6c890');
-const CRUST_BROWN = rgb('#7b4219');
-const CRUST_CHAR = rgb('#2b1608');
-
-/** Noise cells around the ring and around the tube: whole numbers so the crust texture wraps both ways. */
-const CRUST_PU = 72;
-const CRUST_PV = 8;
-
-/**
- * Torus-mapped crust. u runs around the ring, v around the tube: 0 is the
- * outside edge, 0.25 the top, 0.5 the inside edge against the cheese, 0.75 the
- * underside. The height map also drives the crust geometry, so the charred
- * blisters sit on real bumps.
- */
-function crustTexture(seed: number) {
-  const n = makeNoise(seed + 23);
-  return paint(
-    2048,
-    256,
-    (u, v) => {
-      const x = u * CRUST_PU;
-      const y = v * CRUST_PV;
-      const top = Math.cos((v - 0.25) * Math.PI * 2); // 1 on top, -1 underneath
-      const top01 = top * 0.5 + 0.5;
-
-      const warp = n.fbm(x * 0.5 + 0.3, y * 0.5 + 0.7, 2, 0.5, CRUST_PU / 2, CRUST_PV / 2) - 0.5;
-      const base = n.fbm(x * 0.25, y * 0.25, 3, 0.5, CRUST_PU / 4, CRUST_PV / 4);
-      const grain = n.fbm(x * 4, y * 4, 3, 0.5, CRUST_PU * 4, CRUST_PV * 4);
-
-      // Big air bubbles, then a scatter of small blisters.
-      const big = n.cells(x * 0.5 + warp * 0.7, y * 0.5 + warp * 0.7, CRUST_PU / 2, CRUST_PV / 2);
-      const bigId = big.id;
-      const reach = big.f1 / (0.45 + bigId * 0.35);
-      const dome = clamp01(1 - reach * reach) * smoothstep(0.25, 0.4, bigId);
-      const small = n.cells(x * 2 + 11.5 + warp, y * 2 + 3.5 + warp, CRUST_PU * 2, CRUST_PV * 2);
-      const smallId = small.id;
-      const blister = clamp01(1 - (small.f1 / 0.42) ** 2) * (smallId > 0.55 ? 1 : 0);
-
-      // Golden, toasting toward the top; floury on the flanks.
-      let color = mixRgb(CRUST_GOLD, CRUST_TOAST, clamp01(top01 * 0.9 + smoothstep(0.35, 0.7, base) * 0.5 - 0.25));
-      const flour = smoothstep(0.5, 0.75, n.fbm(x * 0.75 + 9, y * 0.75 + 2, 3, 0.5, CRUST_PU * 0.75, CRUST_PV * 0.75));
-      color = mixRgb(color, CRUST_FLOUR, flour * (0.12 + (1 - top01) * 0.45));
-      // Bubbles brown first, and the proudest char.
-      color = mixRgb(color, CRUST_BROWN, dome * smoothstep(0, 0.6, top) * 0.7);
-      const char = clamp01(
-        smoothstep(0.72, 1, dome + (grain - 0.5) * 0.3) * smoothstep(0.6, 0.9, bigId) * smoothstep(0.1, 0.7, top) +
-          blister * smoothstep(0.8, 0.98, smallId) * smoothstep(0.2, 0.8, top) * smoothstep(0.45, 0.65, base) * 0.8,
-      );
-      color = mixRgb(color, CRUST_CHAR, char * 0.85);
-      const shadeBy = 0.9 + grain * 0.2;
-      color = [color[0] * shadeBy, color[1] * shadeBy, color[2] * shadeBy];
-
-      const height = 0.3 + base * 0.15 + dome * 0.38 + blister * 0.12 + grain * 0.05;
-      const rough = 0.82 - char * 0.2 + flour * 0.1;
-      return { color, height, rough };
-    },
-    { normal: 4.5, wrapU: true, wrapV: true },
-  );
 }
 
 /** Planar bounds of an extruded topping, shared by its UV map and its painter. */
@@ -640,7 +272,7 @@ function slab({ outline, centre = { x: 0, y: 0 }, bounds: b, top, rings = [0.3, 
 }
 
 /** Bilinear sample of a painted height map. u, v in 0..1 with v running top-down like the canvas. */
-function sampleHeight(tex: ReturnType<typeof paint>, u: number, v: number) {
+function sampleHeight(tex: Painted, u: number, v: number) {
   const { heightData, width, height } = tex;
   const fx = clamp01(u) * (width - 1);
   const fy = clamp01(v) * (height - 1);
@@ -661,7 +293,7 @@ const CHEESE_RELIEF = 0.028;
 const cheeseHeight = (h: number) => (h - 0.2) * CHEESE_RELIEF;
 
 /** Push a flat ring's vertices up by a planar height map (ring UVs span its bounding square). */
-function displaceRing(geo: Geometry, tex: ReturnType<typeof paint>) {
+function displaceRing(geo: Geometry, tex: Painted) {
   for (let i = 0; i < geo.count; i++) {
     // Canvas rows run top-down, texture v runs bottom-up.
     geo.position[i * 3 + 2] = cheeseHeight(sampleHeight(tex, geo.uv[i * 2], 1 - geo.uv[i * 2 + 1]));
@@ -789,7 +421,7 @@ function photoNormals(image: HTMLImageElement, strength = 2.5) {
   for (let i = 0; i < heights.length; i++) {
     heights[i] = (data[i * 4] * 0.3 + data[i * 4 + 1] * 0.59 + data[i * 4 + 2] * 0.11) / 255;
   }
-  return normalCanvas(heights, w, h, strength, false, false);
+  return new ImageData(normalMap(heights, w, h, strength, false, false), w, h);
 }
 
 /**
@@ -916,39 +548,51 @@ function grainMap() {
   return c;
 }
 
-type Painted = ReturnType<typeof paint>;
+/** A painted surface, with its maps as images ready to become textures. */
+interface Painted {
+  color: ImageData;
+  normal: ImageData;
+  rough: ImageData;
+  heightData: Float32Array;
+  width: number;
+  height: number;
+}
 interface PaintedSet {
   seed: number;
   cheese: Painted;
   crust: Painted;
 }
 
-/** Painting textures is the slow part of a rebuild, so keep the last set unless the seed changes. */
+/** Painting is the slow part of making a pizza, so keep the last set until the seed changes. */
 let paintedCache: PaintedSet | null = null;
 /** Let the browser paint a frame between heavy steps. */
 const breathe = () => new Promise<void>((resolve) => requestAnimationFrame(() => setTimeout(resolve, 0)));
 
-/** Fill the texture cache one texture at a time, reporting progress, so a loader can animate. */
-async function prepaint(seed: number, report: ProgressCallback) {
-  if (paintedCache && paintedCache.seed === seed) return;
-  const steps: Array<[string, keyof Omit<PaintedSet, 'seed'>, (seed: number) => Painted]> = [
-    ['Stretching the dough', 'crust', crustTexture],
-    ['Spreading sauce and grating cheese', 'cheese', cheeseTexture],
-  ];
-  const partial: Partial<PaintedSet> = { seed };
-  for (let i = 0; i < steps.length; i++) {
-    const [caption, key, make] = steps[i];
-    report(caption, i / (steps.length + 1));
-    await breathe();
-    partial[key] = make(seed);
-  }
-  paintedCache = partial as PaintedSet;
+/** Paint one surface in a worker of its own, off the page's thread. */
+function paintInWorker(job: PaintJob): Promise<Painted> {
+  return new Promise((resolve, reject) => {
+    const worker = new Worker(new URL('./paint.worker.ts', import.meta.url), { type: 'module' });
+    worker.onerror = reject;
+    worker.onmessage = ({ data }: MessageEvent<Maps>) => {
+      worker.terminate();
+      const image = (bytes: Uint8ClampedArray) => new ImageData(bytes, data.width, data.height);
+      resolve({ ...data, color: image(data.color), normal: image(data.normal), rough: image(data.rough) });
+    };
+    worker.postMessage(job);
+  });
 }
 
-function paintedFor(seed: number): PaintedSet {
-  if (paintedCache && paintedCache.seed === seed) return paintedCache;
-  paintedCache = { seed, cheese: cheeseTexture(seed), crust: crustTexture(seed) };
-  return paintedCache;
+/** With a photographed cheese surface to lay over it, the painted cheese leaves out its own browning. */
+const PHOTO_CHEESE = Boolean((photoManifest as { cheeseDetail?: string | null }).cheeseDetail);
+
+/** Paint the base for a seed, both surfaces at once, reporting progress so a loader can animate. */
+async function prepaint(seed: number, report: ProgressCallback = () => {}) {
+  if (paintedCache?.seed === seed) return;
+  report('Stretching the dough', 0);
+  const crust = paintInWorker({ what: 'crust', seed });
+  const cheese = paintInWorker({ what: 'cheese', seed, photographed: PHOTO_CHEESE });
+  void crust.then(() => report('Spreading sauce and grating cheese', 1 / 4));
+  paintedCache = { seed, cheese: await cheese, crust: await crust };
 }
 
 /** A geometry and the material it is drawn with. */
@@ -975,12 +619,13 @@ function buildPizza(
   gl: GL,
   photos: PhotoSet,
   basePhotos: BasePhotos,
-  /** The texture of a painted canvas, uploaded once and kept until the seed changes. */
-  cached: (canvas: HTMLCanvasElement, options: TextureOptions) => WebGLTexture,
+  /** The texture of a painted map, uploaded once and kept until the seed changes. */
+  cached: (image: ImageData, options: TextureOptions) => WebGLTexture,
 ): BuiltPizza {
   const crustPhoto = basePhotos.crust;
   const rng = mulberry32(config.seed);
-  const painted = paintedFor(config.seed);
+  // Painted before any build, by prepaint().
+  const painted = paintedCache!;
   const parts: Part[] = [];
   const tiled: TextureOptions = { wrap: 'repeat', anisotropy: 8 };
 
@@ -1049,7 +694,7 @@ function buildPizza(
   const stains = document.createElement('canvas');
   stains.width = stains.height = cheese.width;
   const ink = stains.getContext('2d')!;
-  ink.drawImage(cheese.canvas, 0, 0);
+  ink.putImageData(cheese.color, 0, 0);
   const halo = (x: number, z: number, from: number, to: number, colour: string, alpha: number) => {
     if (alpha <= 0) return;
     const px = (v: number) => (v / (2 * DISC_RADIUS)) * stains.width;
@@ -1093,7 +738,7 @@ function buildPizza(
     geometry: crustGeometry(config.seed, crustMaps).transform(compose(translation(0, -0.012, 0), rotation(0, Math.PI / 2))),
     // The photographed crust supplies the colour; the painted maps still give it its bumps, toned down.
     material: {
-      map: crustPhoto ?? cached(crustMaps.canvas, { ...tiled, srgb: true }),
+      map: crustPhoto ?? cached(crustMaps.color, { ...tiled, srgb: true }),
       color: crustPhoto ? srgb('#e8e8e8') : undefined,
       normalMap: cached(crustMaps.normal, tiled),
       normalScale: crustPhoto ? 0.5 : 1,
@@ -1329,9 +974,9 @@ export async function createPizza(
   let meshes: Mesh[] = [];
   let ownTextures: WebGLTexture[] = [];
   let samples: BuiltPizza['samples'] = {};
-  const painted = new Map<HTMLCanvasElement, WebGLTexture>();
+  const painted = new Map<ImageData, WebGLTexture>();
   let paintedSeed = config.seed;
-  const cached = (source: HTMLCanvasElement, options: TextureOptions) => {
+  const cached = (source: ImageData, options: TextureOptions) => {
     let texture = painted.get(source);
     if (!texture) painted.set(source, (texture = createTexture(gl, source, options)));
     return texture;
@@ -1366,9 +1011,14 @@ export async function createPizza(
     const distance = (aspect < 1 ? 2.9 / Math.max(aspect, 0.5) : 2.9) * (42 / config.fov);
     view = cameraAt(config.fov, aspect, Math.min(Math.max(config.elevation, 10), 89.9), distance);
   }
+  // Sized from the canvas as it is laid out, not from the window: on phones the
+  // two disagree while the address bar is showing, which stretched the picture.
   function resize() {
-    canvas.width = Math.floor(window.innerWidth * pixelRatio);
-    canvas.height = Math.floor(window.innerHeight * pixelRatio);
+    const width = Math.max(1, Math.floor(canvas.clientWidth * pixelRatio));
+    const height = Math.max(1, Math.floor(canvas.clientHeight * pixelRatio));
+    if (width === canvas.width && height === canvas.height) return;
+    canvas.width = width;
+    canvas.height = height;
     pipeline.setSize(canvas.width, canvas.height);
     deleteTarget(before);
     deleteTarget(live);
@@ -1376,7 +1026,8 @@ export async function createPizza(
     aim();
   }
   resize();
-  window.addEventListener('resize', resize);
+  const resized = new ResizeObserver(resize);
+  resized.observe(canvas);
 
   /* Animation */
   let phase = 0; // 0..1 progress through one zoom cycle
@@ -1444,7 +1095,6 @@ export async function createPizza(
   onProgress('Into the oven', 2 / 3);
   await breathe();
   draw();
-  onProgress('Ready', 1);
 
   raf = requestAnimationFrame(frame);
 
@@ -1537,13 +1187,15 @@ export async function createPizza(
         if (needsRebuild) rebuild();
       };
 
-      // Wipe between looks and between shuffled pizzas; everything else changes live.
-      if (lookChanged || seedChanged) withTransition(apply, lookChanged ? 700 : 500);
-      else apply();
+      // Wipe between looks and between differently seeded pizzas; everything else changes live.
+      const run = () => (lookChanged || seedChanged ? withTransition(apply, lookChanged ? 700 : 500) : apply());
+      // A new seed needs its base painted before the pizza can be rebuilt.
+      if (seedChanged) void prepaint(config.seed).then(run);
+      else run();
     },
     dispose() {
       cancelAnimationFrame(raf);
-      window.removeEventListener('resize', resize);
+      resized.disconnect();
       // Dropping the context frees everything made with it.
       gl.getExtension('WEBGL_lose_context')?.loseContext();
     },

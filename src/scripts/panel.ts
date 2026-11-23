@@ -150,12 +150,13 @@ const formatters: Record<string, (v: Primitive) => string> = {
   fov: (v) => `${v}°`,
 };
 
-export function initPanel(pizza: PizzaController) {
+/** Wire up the controls. Resolves once the look and topping pictures are drawn. */
+export async function initPanel(pizza: PizzaController) {
   const panel = document.getElementById('options');
   const toggle = document.getElementById('toggle-options');
   if (!panel || !toggle) return;
 
-  const inputs = Array.from(panel.querySelectorAll<HTMLInputElement | HTMLSelectElement>('[data-key]'));
+  const inputs = Array.from(document.querySelectorAll<HTMLInputElement | HTMLSelectElement>('[data-key]'));
   const outputs = Array.from(panel.querySelectorAll<HTMLOutputElement>('[data-output]'));
 
   const readKey = (key: string): Primitive => (virtual[key] ? virtual[key].get(pizza.config) : (getPath(pizza.config, key) ?? ''));
@@ -352,19 +353,6 @@ export function initPanel(pizza: PizzaController) {
     });
   }
 
-  /* Real previews for the look tiles and topping icons, rendered once things are idle. */
-  const schedule = (window as Window & { requestIdleCallback?: (cb: () => void) => void }).requestIdleCallback ?? ((cb: () => void) => setTimeout(cb, 300));
-  schedule(async () => {
-    const previews = await pizza.renderPreviews(96);
-    for (const [effect, url] of Object.entries(previews.looks)) {
-      const el = panel.querySelector<HTMLElement>(`[data-look-preview="${effect}"]`);
-      el?.style.setProperty('--preview', `url(${url})`);
-    }
-    for (const [kind, url] of Object.entries(previews.toppings)) {
-      panel.querySelector<HTMLElement>(`[data-topping-preview="${kind}"]`)?.style.setProperty('--preview', `url(${url})`);
-    }
-  });
-
   /* Fade the chrome out when the viewer just wants to watch. */
   let idleTimer = 0;
   function wake() {
@@ -379,4 +367,13 @@ export function initPanel(pizza: PizzaController) {
 
   sync();
   history.replaceState(null, '', urlFor(pizza.config));
+
+  /* Pictures for the looks and the toppings, drawn from the real pizza. */
+  const previews = await pizza.renderPreviews(96);
+  for (const [effect, url] of Object.entries(previews.looks)) {
+    document.querySelector<HTMLElement>(`[data-look-preview="${effect}"]`)?.style.setProperty('--preview', `url(${url})`);
+  }
+  for (const [kind, url] of Object.entries(previews.toppings)) {
+    panel.querySelector<HTMLElement>(`[data-topping-preview="${kind}"]`)?.style.setProperty('--preview', `url(${url})`);
+  }
 }
