@@ -26,8 +26,7 @@
   "jalapeno": [
    {"src": "eewm83mBW1E.jpg", "cx": 1290, "cy": 1545, "r": 255, "squash": 0.65, "ellipse": [0.95, 0.95, 0]},
    {"src": "eewm83mBW1E.jpg", "cx": 1850, "cy": 1785, "r": 285, "squash": 0.8, "ellipse": [0.95, 0.95, 0]},
-   {"src": "eewm83mBW1E.jpg", "cx": 3095, "cy": 1710, "r": 230, "squash": 0.83, "ellipse": [0.97, 0.97, 0]},
-   {"src": "eewm83mBW1E.jpg", "cx": 3460, "cy": 2570, "r": 265, "squash": 0.84, "ellipse": [0.96, 0.96, 0]}
+   {"src": "eewm83mBW1E.jpg", "cx": 3095, "cy": 1710, "r": 230, "squash": 0.83, "ellipse": [0.97, 0.97, 0]}
   ],
   "ham": [
    {"src": "Ew_9G3UfsA0.jpg", "cx": 2575, "cy": 3490, "r": 150, "ellipse": [1, 0.85, 20], "wobble": 1.3},

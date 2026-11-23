@@ -24,7 +24,13 @@ import { fileURLToPath } from 'node:url';
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const WORK = 384; // working resolution of the square around a topping
 const REACH = 1.6; // that square spans this many radii from the centre
-const TILE = 512; // atlas tile size
+/**
+ * Atlas tile size for each topping, in pixels. Toppings aren't the same size on
+ * the pizza, so each is sized to its radius there (PHOTO_LOOK in pizza.ts):
+ * none is stored any sharper than the pepperoni, which is the largest slice up close.
+ */
+const TILES = { pepperoni: 512, basil: 512, ham: 480, mushroom: 448, olive: 368, jalapeno: 368 };
+let TILE = 512; // the tile size of the topping being cut
 const FILL = 0.46; // a cut-out's widest point sits this far from its tile centre
 const RAYS = 64;
 /** How the textures are stored: AVIF is about half the size of WebP at the same quality. */
@@ -352,6 +358,7 @@ if (debug) await mkdir(path.join(ROOT, 'tools/debug'), { recursive: true });
 
 for (const [kind, entries] of Object.entries(config.toppings)) {
   if (!entries.length) continue;
+  TILE = TILES[kind] ?? 512;
   const cuts = [];
   for (const entry of entries) cuts.push(await cut(entry));
   const atlas = sharp({ create: { width: TILE * cuts.length, height: TILE, channels: 3, background: '#000' } }).composite(

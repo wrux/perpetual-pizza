@@ -371,7 +371,8 @@ async function loadPhotos(gl: GL): Promise<PhotoSet> {
         const image = await loadImage(sheet.file);
         set[kind] = {
           texture: createTexture(gl, image, { srgb: true, anisotropy: 8 }),
-          normalMap: createTexture(gl, photoNormals(image), { anisotropy: 8 }),
+          // Smaller tiles pack the same slopes into fewer pixels, so the relief is scaled to stay as it was at 512.
+          normalMap: createTexture(gl, photoNormals(image, (2.5 * image.height) / 512), { anisotropy: 8 }),
           cutouts: sheet.cutouts,
         };
       } catch {
