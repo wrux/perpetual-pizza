@@ -1,11 +1,32 @@
-import * as THREE from 'three';
-import { createPipeline, EFFECTS, TransitionPass, type EffectName, type EffectPipeline } from './effects';
-import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js';
-import { OutputPass } from 'three/examples/jsm/postprocessing/OutputPass.js';
-import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer.js';
-import { FullScreenQuad } from 'three/examples/jsm/postprocessing/Pass.js';
-import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
-import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
+import { createPipeline, createTransition, EFFECTS, type EffectName, type EffectPipeline } from './effects';
+import {
+  compose,
+  createTarget,
+  createTexture,
+  deleteTarget,
+  disc,
+  geometryFrom,
+  identity,
+  loadImage,
+  lookAt,
+  merge,
+  multiply,
+  normalize,
+  perspective,
+  ring,
+  rotation,
+  scaling,
+  torus,
+  translation,
+  tube,
+  type Geometry,
+  type GL,
+  type Mat4,
+  type Target,
+  type TextureOptions,
+  type Vec3,
+} from './gl';
+import { createRenderer, srgb, type Item, type Material, type Mesh, type View } from './renderer';
 import photoManifest from './topping-photos.json';
 
 /**
@@ -234,7 +255,7 @@ function normalCanvas(heights: Float32Array, w: number, h: number, strength: num
   return c;
 }
 
-/** Per-pixel painter producing a colour map plus normal and roughness maps. */
+/** Per-pixel painter producing a colour canvas plus normal and roughness canvases. */
 function paint(
   w: number,
   h: number,
@@ -271,19 +292,11 @@ function paint(
   const normalC = normalCanvas(heightData, w, h, strength, wrapU, wrapV);
   roughC.getContext('2d')!.putImageData(rough, 0, 0);
 
-  const tex = (c: HTMLCanvasElement, srgb: boolean) => {
-    const t = new THREE.CanvasTexture(c);
-    if (srgb) t.colorSpace = THREE.SRGBColorSpace;
-    t.wrapS = t.wrapT = THREE.RepeatWrapping;
-    t.anisotropy = 8;
-    return t;
-  };
   return {
-    map: tex(colorC, true),
-    normalMap: tex(normalC, false),
-    roughnessMap: tex(roughC, false),
-    /** The painted colour canvas, for compositing extra detail on top. */
+    /** The painted colour canvas. */
     canvas: colorC,
+    normal: normalC,
+    rough: roughC,
     heightData,
     width: w,
     height: h,
@@ -484,28 +497,28 @@ const LEVEL_DROP = -0.004;
  * Average the normals of vertices that share a position, so closed surfaces
  * built from an open grid (torus, lathe) shade without a seam.
  */
-function weldNormals(geo: THREE.BufferGeometry) {
-  geo.computeVertexNormals();
-  const pos = geo.attributes.position as THREE.BufferAttribute;
-  const nor = geo.attributes.normal as THREE.BufferAttribute;
+function weldNormals(geo: Geometry) {
+  geo.computeNormals();
+  const p = geo.position;
+  const n = geo.normal;
   const sums = new Map<string, [number, number, number]>();
-  const keyOf = (i: number) =>
-    `${Math.round(pos.getX(i) * 1e5)},${Math.round(pos.getY(i) * 1e5)},${Math.round(pos.getZ(i) * 1e5)}`;
   const keys: string[] = [];
-  for (let i = 0; i < pos.count; i++) {
-    const key = keyOf(i);
+  for (let i = 0; i < p.length; i += 3) {
+    const key = `${Math.round(p[i] * 1e5)},${Math.round(p[i + 1] * 1e5)},${Math.round(p[i + 2] * 1e5)}`;
     keys.push(key);
     const sum = sums.get(key);
     if (sum) {
-      sum[0] += nor.getX(i);
-      sum[1] += nor.getY(i);
-      sum[2] += nor.getZ(i);
-    } else sums.set(key, [nor.getX(i), nor.getY(i), nor.getZ(i)]);
+      sum[0] += n[i];
+      sum[1] += n[i + 1];
+      sum[2] += n[i + 2];
+    } else sums.set(key, [n[i], n[i + 1], n[i + 2]]);
   }
-  for (let i = 0; i < pos.count; i++) {
-    const [x, y, z] = sums.get(keys[i])!;
+  for (let i = 0; i < p.length; i += 3) {
+    const [x, y, z] = sums.get(keys[i / 3])!;
     const len = Math.hypot(x, y, z) || 1;
-    nor.setXYZ(i, x / len, y / len, z / len);
+    n[i] = x / len;
+    n[i + 1] = y / len;
+    n[i + 2] = z / len;
   }
   return geo;
 }
@@ -517,50 +530,58 @@ function weldNormals(geo: THREE.BufferGeometry) {
  */
 function crustGeometry(seed: number, tex: Painted) {
   const n = makeNoise(seed + 41);
-  const geo = new THREE.TorusGeometry(CRUST_RADIUS, CRUST_TUBE, 40, 256);
-  const pos = geo.attributes.position as THREE.BufferAttribute;
-  const uv = geo.attributes.uv as THREE.BufferAttribute;
-  const v = new THREE.Vector3();
-  for (let i = 0; i < pos.count; i++) {
-    v.fromBufferAttribute(pos, i);
-    const t = uv.getX(i); // 0..1 around the ring
+  const geo = torus(CRUST_RADIUS, CRUST_TUBE, 40, 256);
+  const p = geo.position;
+  for (let i = 0; i < geo.count; i++) {
+    const t = geo.uv[i * 2]; // 0..1 around the ring
     const ring = t * Math.PI * 2;
     const cx = Math.cos(ring) * CRUST_RADIUS;
     const cy = Math.sin(ring) * CRUST_RADIUS;
-    const dx = v.x - cx;
-    const dy = v.y - cy;
-    const dz = v.z;
+    const dx = p[i * 3] - cx;
+    const dy = p[i * 3 + 1] - cy;
+    const dz = p[i * 3 + 2];
     // Radial component of the tube offset (positive = outside of the ring).
     const radial = dx * Math.cos(ring) + dy * Math.sin(ring);
     const tube = Math.atan2(dz, radial);
     const puff = 0.8 + n.fbm(t * 12, 2.5, 3, 0.5, 12) * 0.5;
     // Fatter on the outside edge, melting into the cheese on the inside.
     const outward = Math.cos(tube) * 0.5 + 0.5;
-    const bumps = sampleHeight(tex, t, 1 - uv.getY(i)) - 0.4;
+    const bumps = sampleHeight(tex, t, 1 - geo.uv[i * 2 + 1]) - 0.4;
     const s = puff * (0.94 + outward * 0.12) + bumps * 0.4;
     // The mesh is laid flat with geometry +z facing down.
-    pos.setXYZ(i, cx + dx * s, cy + dy * s, dz * s * (dz > 0 ? 0.5 : 1.35));
+    p[i * 3] = cx + dx * s;
+    p[i * 3 + 1] = cy + dy * s;
+    p[i * 3 + 2] = dz * s * (dz > 0 ? 0.5 : 1.35);
   }
   return weldNormals(geo);
 }
 
 /** Move every vertex of a geometry, then rebuild its normals. */
-function deform(geo: THREE.BufferGeometry, move: (p: THREE.Vector3) => void) {
-  const pos = geo.attributes.position as THREE.BufferAttribute;
-  const p = new THREE.Vector3();
-  for (let i = 0; i < pos.count; i++) {
-    p.fromBufferAttribute(pos, i);
+function deform(geo: Geometry, move: (p: { x: number; y: number; z: number }) => void) {
+  const pos = geo.position;
+  const p = { x: 0, y: 0, z: 0 };
+  for (let i = 0; i < pos.length; i += 3) {
+    p.x = pos[i];
+    p.y = pos[i + 1];
+    p.z = pos[i + 2];
     move(p);
-    pos.setXYZ(i, p.x, p.y, p.z);
+    pos[i] = p.x;
+    pos[i + 1] = p.y;
+    pos[i + 2] = p.z;
   }
-  geo.computeVertexNormals();
-  return geo;
+  return geo.computeNormals();
+}
+
+/** A point of an outline in the xy plane. */
+interface Point {
+  x: number;
+  y: number;
 }
 
 interface SlabOptions {
   /** Outline in the xy plane, winding anticlockwise and visible from `centre`. */
-  outline: THREE.Vector2[];
-  centre?: THREE.Vector2;
+  outline: Point[];
+  centre?: Point;
   /** Planar bounds the painted texture covers. */
   bounds: Bounds;
   /** Height of the top face. `edge` runs from 0 at the centre to 1 on the outline. */
@@ -575,7 +596,7 @@ interface SlabOptions {
  * share their edge, so a top that dips toward the outline reads as a rounded
  * rim. UVs are planar, so the wall picks up the colour of the outline.
  */
-function slab({ outline, centre = new THREE.Vector2(), bounds: b, top, rings = [0.3, 0.6, 0.82, 0.94, 1] }: SlabOptions) {
+function slab({ outline, centre = { x: 0, y: 0 }, bounds: b, top, rings = [0.3, 0.6, 0.82, 0.94, 1] }: SlabOptions) {
   const n = outline.length;
   const positions: number[] = [];
   const uvs: number[] = [];
@@ -615,12 +636,7 @@ function slab({ outline, centre = new THREE.Vector2(), bounds: b, top, rings = [
   const under = push(centre.x, centre.y, 0);
   for (let i = 0; i < n; i++) index.push(under, foot + ((i + 1) % n), foot + i);
 
-  const geo = new THREE.BufferGeometry();
-  geo.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
-  geo.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2));
-  geo.setIndex(index);
-  geo.computeVertexNormals();
-  return geo;
+  return geometryFrom(positions, uvs, index);
 }
 
 /** Bilinear sample of a painted height map. u, v in 0..1 with v running top-down like the canvas. */
@@ -645,15 +661,12 @@ const CHEESE_RELIEF = 0.028;
 const cheeseHeight = (h: number) => (h - 0.2) * CHEESE_RELIEF;
 
 /** Push a flat ring's vertices up by a planar height map (ring UVs span its bounding square). */
-function displaceRing(geo: THREE.BufferGeometry, tex: ReturnType<typeof paint>) {
-  const pos = geo.attributes.position as THREE.BufferAttribute;
-  const uv = geo.attributes.uv as THREE.BufferAttribute;
-  for (let i = 0; i < pos.count; i++) {
+function displaceRing(geo: Geometry, tex: ReturnType<typeof paint>) {
+  for (let i = 0; i < geo.count; i++) {
     // Canvas rows run top-down, texture v runs bottom-up.
-    pos.setZ(i, cheeseHeight(sampleHeight(tex, uv.getX(i), 1 - uv.getY(i))));
+    geo.position[i * 3 + 2] = cheeseHeight(sampleHeight(tex, geo.uv[i * 2], 1 - geo.uv[i * 2 + 1]));
   }
-  geo.computeVertexNormals();
-  return geo;
+  return geo.computeNormals();
 }
 
 /* ------------------------------------------------------------------ */
@@ -672,8 +685,8 @@ interface PhotoCutout {
 
 /** All the cut-outs of one topping, packed side by side into one texture. */
 interface PhotoSheet {
-  texture: THREE.Texture;
-  normalMap: THREE.Texture;
+  texture: WebGLTexture;
+  normalMap: WebGLTexture;
   cutouts: PhotoCutout[];
 }
 type PhotoSet = Partial<Record<Kind, PhotoSheet>>;
@@ -716,18 +729,19 @@ const PHOTO_LOOK: Record<Kind, PhotoLook> = {
 };
 
 /** Fetch every topping atlas listed in the manifest. A topping whose atlas fails to load is left off the pizza. */
-async function loadPhotos(): Promise<PhotoSet> {
+async function loadPhotos(gl: GL): Promise<PhotoSet> {
   const set: PhotoSet = {};
-  const loader = new THREE.TextureLoader();
   const sheets = photoManifest.toppings as Partial<Record<Kind, { file: string; cutouts: PhotoCutout[] }>>;
   await Promise.all(
     (Object.keys(sheets) as Kind[]).map(async (kind) => {
       const sheet = sheets[kind]!;
       try {
-        const texture = await loader.loadAsync(sheet.file);
-        texture.colorSpace = THREE.SRGBColorSpace;
-        texture.anisotropy = 8;
-        set[kind] = { texture, normalMap: photoNormals(texture.image as HTMLImageElement), cutouts: sheet.cutouts };
+        const image = await loadImage(sheet.file);
+        set[kind] = {
+          texture: createTexture(gl, image, { srgb: true, anisotropy: 8 }),
+          normalMap: createTexture(gl, photoNormals(image), { anisotropy: 8 }),
+          cutouts: sheet.cutouts,
+        };
       } catch {
         // Leave this kind off the pizza.
       }
@@ -742,36 +756,22 @@ async function loadPhotos(): Promise<PhotoSet> {
  */
 interface BasePhotos {
   /** The crust unwrapped around the ring. */
-  crust: THREE.Texture | null;
+  crust: WebGLTexture | null;
   /** A close-up of melted cheese, tiled over the painted cheese to give it a real surface. */
-  cheeseDetail: THREE.Texture | null;
+  cheeseDetail: WebGLTexture | null;
 }
 
-async function loadBasePhotos(): Promise<BasePhotos> {
+async function loadBasePhotos(gl: GL): Promise<BasePhotos> {
   const files = photoManifest as { crust: string | null; cheeseDetail: string | null };
-  const crust = files.crust
-    ? new THREE.TextureLoader()
-        .loadAsync(files.crust)
-        .then((texture) => {
-          texture.colorSpace = THREE.SRGBColorSpace;
-          texture.wrapS = texture.wrapT = THREE.RepeatWrapping;
-          texture.anisotropy = 8;
-          return texture;
-        })
-        .catch(() => null)
-    : null;
-  const cheeseDetail = files.cheeseDetail
-    ? new THREE.TextureLoader()
-        .loadAsync(files.cheeseDetail)
-        .then((texture) => {
-          texture.colorSpace = THREE.SRGBColorSpace;
-          // Mirrored, so the photo meets itself at every repeat and no seam shows.
-          texture.wrapS = texture.wrapT = THREE.MirroredRepeatWrapping;
-          texture.anisotropy = 8;
-          return texture;
-        })
-        .catch(() => null)
-    : null;
+  const load = (file: string | null, options: TextureOptions) =>
+    file
+      ? loadImage(file)
+          .then((image) => createTexture(gl, image, { srgb: true, anisotropy: 8, ...options }))
+          .catch(() => null)
+      : null;
+  const crust = load(files.crust, { wrap: 'repeat' });
+  // Mirrored, so the photo meets itself at every repeat and no seam shows.
+  const cheeseDetail = load(files.cheeseDetail, { wrap: 'mirror' });
   return { crust: await crust, cheeseDetail: await cheeseDetail };
 }
 
@@ -789,9 +789,7 @@ function photoNormals(image: HTMLImageElement, strength = 2.5) {
   for (let i = 0; i < heights.length; i++) {
     heights[i] = (data[i * 4] * 0.3 + data[i * 4 + 1] * 0.59 + data[i * 4 + 2] * 0.11) / 255;
   }
-  const texture = new THREE.CanvasTexture(normalCanvas(heights, w, h, strength, false, false));
-  texture.anisotropy = 8;
-  return texture;
+  return normalCanvas(heights, w, h, strength, false, false);
 }
 
 /**
@@ -799,7 +797,7 @@ function photoNormals(image: HTMLImageElement, strength = 2.5) {
  * which must have the same number of points at the same angles, anticlockwise.
  * Rounded over the top, with a wall down into the hole and one down the outside.
  */
-function ringSlab(outer: THREE.Vector2[], inner: THREE.Vector2[], b: Bounds, thick: number) {
+function ringSlab(outer: Point[], inner: Point[], b: Bounds, thick: number) {
   const n = outer.length;
   // Across the ring from the foot of the inner wall to the foot of the outer: [position, height].
   const profile = [
@@ -831,12 +829,7 @@ function ringSlab(outer: THREE.Vector2[], inner: THREE.Vector2[], b: Bounds, thi
       index.push(a, a + n, a2 + n, a, a2 + n, a2);
     }
   }
-  const geo = new THREE.BufferGeometry();
-  geo.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
-  geo.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2));
-  geo.setIndex(index);
-  geo.computeVertexNormals();
-  return geo;
+  return geometryFrom(positions, uvs, index);
 }
 
 /**
@@ -854,7 +847,7 @@ function photoGeometry(kind: Kind, cut: PhotoCutout, tile: number, tiles: number
     Array.from({ length: n }, (_, i) => {
       const k = (n - i) % n;
       const a = (k / n) * Math.PI * 2;
-      return new THREE.Vector2(Math.cos(a) * radii[k] * W, -Math.sin(a) * radii[k] * W);
+      return { x: Math.cos(a) * radii[k] * W, y: -Math.sin(a) * radii[k] * W };
     });
   const geo = cut.inner
     ? ringSlab(ring(cut.outer), ring(cut.inner), b, look.thick)
@@ -863,8 +856,7 @@ function photoGeometry(kind: Kind, cut: PhotoCutout, tile: number, tiles: number
         bounds: b,
         top: (_x, _y, edge) => look.thick * (1 - 0.55 * smoothstep(0.8, 1, edge) ** 2),
       });
-  const uv = geo.attributes.uv as THREE.BufferAttribute;
-  for (let i = 0; i < uv.count; i++) uv.setX(i, (tile + uv.getX(i)) / tiles);
+  for (let i = 0; i < geo.count; i++) geo.uv[i * 2] = (tile + geo.uv[i * 2]) / tiles;
 
   const rng = mulberry32(seed + tile * 31);
   const p2 = rng() * Math.PI * 2;
@@ -890,8 +882,6 @@ function photoGeometry(kind: Kind, cut: PhotoCutout, tile: number, tiles: number
 /* Surface grain                                                       */
 /* ------------------------------------------------------------------ */
 
-let grainTexture: THREE.Texture | null = null;
-
 /**
  * A small tiling texture of fine grain shared by every food material:
  * red tints the colour, green varies the roughness, blue is a height field of
@@ -900,7 +890,6 @@ let grainTexture: THREE.Texture | null = null;
  * magnifies them.
  */
 function grainMap() {
-  if (grainTexture) return grainTexture;
   const SIZE = 256;
   const n = makeNoise(9001);
   const c = document.createElement('canvas');
@@ -924,137 +913,7 @@ function grainMap() {
     }
   }
   ctx.putImageData(img, 0, 0);
-  grainTexture = new THREE.CanvasTexture(c);
-  grainTexture.wrapS = grainTexture.wrapT = THREE.RepeatWrapping;
-  grainTexture.anisotropy = 4;
-  return grainTexture;
-}
-
-interface Grain {
-  /** How many times the grain tiles across the material's UVs, along u and v. */
-  repeat: [number, number];
-  /** Strength of the colour and roughness variation. */
-  tint: number;
-  /** Strength of the relief. */
-  bump: number;
-}
-
-/** Layer the shared grain over a textured material's colour, roughness and normals. */
-function addGrain<T extends THREE.MeshStandardMaterial>(material: T, { repeat, tint, bump }: Grain): T {
-  material.onBeforeCompile = (shader) => {
-    shader.uniforms.grainMap = { value: grainMap() };
-    shader.uniforms.grainRepeat = { value: new THREE.Vector2(...repeat) };
-    shader.uniforms.grainTint = { value: tint };
-    shader.uniforms.grainBump = { value: bump };
-    shader.fragmentShader = shader.fragmentShader
-      .replace(
-        '#include <common>',
-        /* glsl */ `#include <common>
-        uniform sampler2D grainMap;
-        uniform vec2 grainRepeat;
-        uniform float grainTint;
-        uniform float grainBump;`,
-      )
-      .replace(
-        '#include <map_fragment>',
-        /* glsl */ `#include <map_fragment>
-        vec2 grainUv = vMapUv * grainRepeat;
-        vec3 grain = texture2D( grainMap, grainUv ).rgb;
-        diffuseColor.rgb *= 1.0 + ( grain.r - 0.5 ) * grainTint;`,
-      )
-      .replace(
-        '#include <roughnessmap_fragment>',
-        /* glsl */ `#include <roughnessmap_fragment>
-        roughnessFactor = clamp( roughnessFactor + ( grain.g - 0.5 ) * grainTint, 0.05, 1.0 );`,
-      )
-      .replace(
-        '#include <normal_fragment_maps>',
-        /* glsl */ `#include <normal_fragment_maps>
-        {
-          // Slope of the grain height along u and v, tilted into the surface's tangent frame.
-          float e = 1.0 / 256.0;
-          float du = texture2D( grainMap, grainUv + vec2( e, 0.0 ) ).b - grain.b;
-          float dv = texture2D( grainMap, grainUv + vec2( 0.0, e ) ).b - grain.b;
-          normal = normalize( normal - ( tbn[ 0 ] * du + tbn[ 1 ] * dv ) * grainBump );
-        }`,
-      );
-  };
-  // Every grained material can share one compiled program; only the uniforms differ.
-  material.customProgramCacheKey = () => 'grain';
-  return material;
-}
-
-/* ------------------------------------------------------------------ */
-/* Photographed cheese surface                                         */
-/* ------------------------------------------------------------------ */
-
-/** Run more shader edits after whatever a material already does when it compiles. */
-function alsoCompile(material: THREE.Material, key: string, edit: (shader: THREE.WebGLProgramParametersWithUniforms) => void) {
-  const before = material.onBeforeCompile;
-  const beforeKey = material.customProgramCacheKey();
-  material.onBeforeCompile = (shader, renderer) => {
-    before.call(material, shader, renderer);
-    edit(shader);
-  };
-  material.customProgramCacheKey = () => `${beforeKey}|${key}`;
-}
-
-/** How many times the cheese close-up repeats across the pizza. Sets how big its browned patches are. */
-const CHEESE_REPEAT = '1.5';
-/**
- * How strongly the photo's light and dark patches show, 0 to 1. At full
- * strength its browning is so busy that it competes with the toppings.
- */
-const CHEESE_DETAIL = '0.45';
-/** The photo's average colour in linear light, measured from the cropped tile. */
-const CHEESE_AVERAGE = 'vec3( 0.343, 0.213, 0.129 )';
-
-/**
- * Lay a photographed cheese surface over the painted one. The painted map
- * still decides where cheese is, by its colour: cheese is yellow, sauce and
- * grease stains are red. In the cheesy parts the photo
- * only varies it: lighter and darker where the photo is, so the cheese keeps
- * its painted colour and picks up real mottling, a little proud and dry where
- * it browns.
- */
-function photographCheese(material: THREE.MeshStandardMaterial, photo: THREE.Texture) {
-  alsoCompile(material, 'photo-cheese', (shader) => {
-    shader.uniforms.cheesePhoto = { value: photo };
-    shader.fragmentShader = shader.fragmentShader
-      .replace('#include <common>', `#include <common>\nuniform sampler2D cheesePhoto;`)
-      .replace(
-        '#include <map_fragment>',
-        /* glsl */ `#include <map_fragment>
-        vec2 cheeseUv = ( vMapUv - 0.5 ) * ${CHEESE_REPEAT};
-        vec3 cheeseRaw = texture2D( cheesePhoto, cheeseUv ).rgb;
-        float cheeseLight = dot( cheeseRaw, vec3( 0.3, 0.59, 0.11 ) );
-        float cheesy = smoothstep( 0.3, 0.55, diffuseColor.g / max( diffuseColor.r, 0.001 ) );
-        // The painted map keeps the cheese's overall colour; the photo only varies it,
-        // by how far each of its texels sits from the photo's own average.
-        diffuseColor.rgb *= mix( vec3( 1.0 ), pow( cheeseRaw / ${CHEESE_AVERAGE}, vec3( ${CHEESE_DETAIL} ) ), cheesy );`,
-      )
-      .replace(
-        '#include <roughnessmap_fragment>',
-        `#include <roughnessmap_fragment>\nroughnessFactor = clamp( roughnessFactor + ( 0.25 - cheeseLight ) * 0.5 * cheesy, 0.05, 1.0 );`,
-      )
-      .replace(
-        '#include <normal_fragment_maps>',
-        /* glsl */ `#include <normal_fragment_maps>
-        {
-          // Browned patches are darker and raised, so treat darkness as height.
-          float e = 1.5 / 2048.0;
-          float du = dot( texture2D( cheesePhoto, cheeseUv + vec2( e, 0.0 ) ).rgb, vec3( 0.3, 0.59, 0.11 ) ) - cheeseLight;
-          float dv = dot( texture2D( cheesePhoto, cheeseUv + vec2( 0.0, e ) ).rgb, vec3( 0.3, 0.59, 0.11 ) ) - cheeseLight;
-          normal = normalize( normal + ( tbn[ 0 ] * du + tbn[ 1 ] * dv ) * 1.0 * cheesy );
-        }`,
-      );
-  });
-}
-
-interface Assets {
-  geometries: THREE.BufferGeometry[];
-  materials: THREE.Material[];
-  textures: THREE.Texture[];
+  return c;
 }
 
 type Painted = ReturnType<typeof paint>;
@@ -1088,63 +947,65 @@ async function prepaint(seed: number, report: ProgressCallback) {
 
 function paintedFor(seed: number): PaintedSet {
   if (paintedCache && paintedCache.seed === seed) return paintedCache;
-  if (paintedCache) {
-    for (const set of [paintedCache.cheese, paintedCache.crust]) {
-      set.map.dispose();
-      set.normalMap.dispose();
-      set.roughnessMap.dispose();
-    }
-  }
   paintedCache = { seed, cheese: cheeseTexture(seed), crust: crustTexture(seed) };
   return paintedCache;
 }
 
-/** A topping model: a photo slice, built lying in the xy plane with its underside at zero. */
-interface Model {
-  geometry: THREE.BufferGeometry;
-  material: THREE.Material;
+/** A geometry and the material it is drawn with. */
+interface Part {
+  geometry: Geometry;
+  material: Material;
 }
 
 interface BuiltPizza {
-  group: THREE.Group;
-  samples: Partial<Record<Kind, THREE.Group>>;
-  /** Give one nesting level's copy of the pizza its own cheese and crust materials. */
-  dress(pizza: THREE.Object3D): void;
+  /** One pizza, as a handful of merged meshes. Every nesting level draws the same ones. */
+  parts: Part[];
+  /** One of each topping on its own, standing up, for the options panel thumbnails. */
+  samples: Partial<Record<Kind, Part>>;
+  /** Textures made for this pizza alone, to delete with it. */
+  textures: WebGLTexture[];
 }
 
-function buildPizza(config: PizzaConfig, assets: Assets, photos: PhotoSet, basePhotos: BasePhotos): BuiltPizza {
+/** Rows of vertices around the cheese, and from its hole out to its edge. */
+const TOP_AROUND = 320;
+const TOP_ACROSS = 80;
+
+function buildPizza(
+  config: PizzaConfig,
+  gl: GL,
+  photos: PhotoSet,
+  basePhotos: BasePhotos,
+  /** The texture of a painted canvas, uploaded once and kept until the seed changes. */
+  cached: (canvas: HTMLCanvasElement, options: TextureOptions) => WebGLTexture,
+): BuiltPizza {
   const crustPhoto = basePhotos.crust;
   const rng = mulberry32(config.seed);
-  const group = new THREE.Group();
-
-  const geo = <T extends THREE.BufferGeometry>(g: T): T => (assets.geometries.push(g), g);
-  const mat = <T extends THREE.Material>(m: T): T => (assets.materials.push(m), m);
   const painted = paintedFor(config.seed);
+  const parts: Part[] = [];
+  const tiled: TextureOptions = { wrap: 'repeat', anisotropy: 8 };
 
   // Inner pizza hole: next level is `ratio` the size, including its crust.
   const holeRadius = (CRUST_RADIUS + CRUST_TUBE) * config.ratio * 0.97;
 
   /* Cheese + sauce top, from the hole out under the crust. */
   const cheese = painted.cheese;
-  // The cheese and crust get their materials per nesting level, in dress() below.
-  const cheeseParams: THREE.MeshStandardMaterialParameters = {
-    normalMap: cheese.normalMap,
-    roughnessMap: cheese.roughnessMap,
-    roughness: 1,
-    metalness: 0,
-    envMapIntensity: 1.2,
+  const cheeseMaterial: Material = {
+    normalMap: cached(cheese.normal, tiled),
+    // The painted bubbles would sit at odds with the photographed ones.
+    normalScale: basePhotos.cheeseDetail ? 0.45 : 1,
+    roughMap: cached(cheese.rough, tiled),
+    grain: { repeat: [30, 30], tint: 0.14, bump: 2 },
+    cheese: basePhotos.cheeseDetail,
+    receives: true,
   };
-  const topGeo = geo(new THREE.RingGeometry(holeRadius, DISC_RADIUS, 320, 80)); // matches TOP_AROUND x TOP_ACROSS below
-  displaceRing(topGeo, cheese);
-  const top = new THREE.Mesh(topGeo);
-  top.name = 'cheese';
+  // Built lying in the xy plane, then laid flat for drawing.
+  const top = displaceRing(ring(holeRadius, DISC_RADIUS, TOP_AROUND, TOP_ACROSS), cheese);
+  parts.push({ geometry: top.clone().transform(rotation(0, -Math.PI / 2)), material: cheeseMaterial });
   // Surface height at a point on the pizza, so toppings sit on the cheese.
   // Read back from the ring's own vertices rather than the height map, so it
   // matches the mesh that is actually drawn and toppings neither sink into it
-  // nor hover over it. The ring is rotated -90° about x, so world z = -geometry y.
-  const TOP_AROUND = 320;
-  const TOP_ACROSS = 80;
-  const topHeights = (topGeo.attributes.position as THREE.BufferAttribute).array;
+  // nor hover over it. Laid flat, world z = -geometry y.
+  const topHeights = top.position;
   const vertexHeight = (ring: number, spoke: number) => topHeights[(ring * (TOP_AROUND + 1) + spoke) * 3 + 2];
   const heightAt = (x: number, z: number) => {
     const across = clamp01((Math.hypot(x, z) - holeRadius) / (DISC_RADIUS - holeRadius)) * TOP_ACROSS;
@@ -1208,78 +1069,62 @@ function buildPizza(config: PizzaConfig, assets: Assets, photos: PhotoSet, baseP
   };
   // The inner pizza presses a shadow into the cheese around its recess.
   halo(0, 0, holeRadius * 0.9, holeRadius * 1.45, '52,20,6', 0.6);
-  top.rotation.x = -Math.PI / 2;
-  top.receiveShadow = true;
-  group.add(top);
 
   /* Base body under the cheese. */
-  const baseMat = mat(new THREE.MeshStandardMaterial({ color: '#9d6a38', roughness: 0.95 }));
-  const base = new THREE.Mesh(
-    geo(new THREE.CylinderGeometry(DISC_RADIUS, DISC_RADIUS - 0.01, BASE_THICKNESS, 128, 1, true)),
-    baseMat,
-  );
-  base.position.y = -BASE_THICKNESS / 2;
-  group.add(base);
-  const bottomMat = mat(new THREE.MeshStandardMaterial({ color: '#9d6a38', roughness: 0.95, side: THREE.DoubleSide }));
-  const bottom = new THREE.Mesh(geo(new THREE.CircleGeometry(DISC_RADIUS, 128)), bottomMat);
-  bottom.rotation.x = Math.PI / 2;
-  bottom.position.y = -BASE_THICKNESS;
-  group.add(bottom);
+  const dough = srgb('#9d6a38');
+  parts.push({
+    geometry: tube(DISC_RADIUS, DISC_RADIUS - 0.01, BASE_THICKNESS, 128).transform(translation(0, -BASE_THICKNESS / 2, 0)),
+    material: { color: dough, rough: 0.95 },
+  });
+  parts.push({
+    geometry: disc(DISC_RADIUS, 128).transform(compose(translation(0, -BASE_THICKNESS, 0), rotation(0, Math.PI / 2))),
+    material: { color: dough, rough: 0.95, side: 'both' },
+  });
 
   /* Hole wall so the inner pizza sits in a little recess. */
-  const wall = new THREE.Mesh(
-    geo(new THREE.CylinderGeometry(holeRadius, holeRadius, BASE_THICKNESS, 64, 1, true)),
-    mat(new THREE.MeshStandardMaterial({ color: '#6e3a16', roughness: 1, side: THREE.BackSide })),
-  );
-  wall.position.y = -BASE_THICKNESS / 2;
-  group.add(wall);
+  parts.push({
+    geometry: tube(holeRadius, holeRadius, BASE_THICKNESS, 64).transform(translation(0, -BASE_THICKNESS / 2, 0)),
+    material: { color: srgb('#6e3a16'), side: 'back' },
+  });
 
   /* Crust. */
   const crustMaps = painted.crust;
-  // The photographed crust supplies the colour; the painted maps still give it its bumps, toned down.
-  const crustParams: THREE.MeshStandardMaterialParameters = {
-    map: crustPhoto ?? crustMaps.map,
-    color: crustPhoto ? '#e8e8e8' : '#ffffff',
-    normalMap: crustMaps.normalMap,
-    normalScale: new THREE.Vector2(crustPhoto ? 0.5 : 1, crustPhoto ? 0.5 : 1),
-    roughnessMap: crustMaps.roughnessMap,
-    roughness: 1,
-    envMapIntensity: 0.5,
-  };
-  const crust = new THREE.Mesh(geo(crustGeometry(config.seed, crustMaps)));
-  crust.name = 'crust';
-  crust.rotation.x = Math.PI / 2;
-  crust.position.y = -0.012;
-  crust.castShadow = crust.receiveShadow = true;
-  group.add(crust);
+  parts.push({
+    geometry: crustGeometry(config.seed, crustMaps).transform(compose(translation(0, -0.012, 0), rotation(0, Math.PI / 2))),
+    // The photographed crust supplies the colour; the painted maps still give it its bumps, toned down.
+    material: {
+      map: crustPhoto ?? cached(crustMaps.canvas, { ...tiled, srgb: true }),
+      color: crustPhoto ? srgb('#e8e8e8') : undefined,
+      normalMap: cached(crustMaps.normal, tiled),
+      normalScale: crustPhoto ? 0.5 : 1,
+      roughMap: cached(crustMaps.rough, tiled),
+      grain: { repeat: [94, 10], tint: 0.22, bump: 6 },
+      casts: true,
+      receives: true,
+    },
+  });
 
   /* Toppings: the cut-out's outline gives the model its shape, the photo its surface. */
   const pick = <T,>(list: T[]) => list[Math.floor(rng() * list.length)];
-  const models: Partial<Record<Kind, Model[]>> = {};
+  const models: Partial<Record<Kind, Part[]>> = {};
   for (const kind of Object.keys(photos) as Kind[]) {
     const sheet = photos[kind]!;
     const look = PHOTO_LOOK[kind];
     const tiles = sheet.cutouts.length;
-    const params = {
-      map: sheet.texture,
-      normalMap: sheet.normalMap,
-      normalScale: new THREE.Vector2(look.relief, look.relief),
-      roughness: look.rough,
-      envMapIntensity: 1,
-      color: look.tint,
-    };
-    const surface = mat(
-      look.clearcoat
-        ? new THREE.MeshPhysicalMaterial({ ...params, clearcoat: look.clearcoat, clearcoatRoughness: 0.25 })
-        : new THREE.MeshStandardMaterial(params),
-    );
     // Tile the grain by real size: a tile is this many grain widths across.
     const across = look.radius / PHOTO_FILL / 0.06;
-    addGrain(surface, { repeat: [tiles * across, across], tint: 0.08, bump: look.grain });
-    models[kind] = sheet.cutouts.map((cut, i) => ({
-      geometry: photoGeometry(kind, cut, i, tiles, config.seed),
-      material: surface,
-    }));
+    const material: Material = {
+      map: sheet.texture,
+      color: srgb(look.tint),
+      normalMap: sheet.normalMap,
+      normalScale: look.relief,
+      rough: look.rough,
+      clearcoat: look.clearcoat,
+      grain: { repeat: [tiles * across, across], tint: 0.08, bump: look.grain },
+      casts: true,
+      receives: true,
+    };
+    models[kind] = sheet.cutouts.map((cut, i) => ({ geometry: photoGeometry(kind, cut, i, tiles, config.seed), material }));
   }
 
   const placed: Array<{ x: number; z: number; r: number }> = [];
@@ -1308,9 +1153,9 @@ function buildPizza(config: PizzaConfig, assets: Assets, photos: PhotoSet, baseP
    * mesh. Nothing hovers, and a pizza costs a handful of draw calls instead of
    * one per topping.
    */
-  const baked = new Map<THREE.Material, THREE.BufferGeometry[]>();
+  const baked = new Map<Material, Geometry[]>();
   /** Models are built lying in the xy plane; stand them up so y is up. */
-  const stand = new THREE.Matrix4().makeRotationX(-Math.PI / 2);
+  const stand = rotation(0, -Math.PI / 2);
 
   interface Lay {
     x: number;
@@ -1326,34 +1171,34 @@ function buildPizza(config: PizzaConfig, assets: Assets, photos: PhotoSet, baseP
   /** Slices rest just proud of the cheese so the two never fight for the same depth. */
   const LIFT = 0.0006;
 
-  const lay = (model: Model, o: Lay) => {
+  const lay = (model: Part, o: Lay) => {
     const fit = fitAt(o.x, o.z, o.footprint);
-    const turn = new THREE.Euler((rng() - 0.5) * o.lean, rng() * Math.PI * 2, (rng() - 0.5) * o.lean, 'YXZ');
-    const m = new THREE.Matrix4()
-      .makeTranslation(o.x, 0, o.z)
-      .multiply(new THREE.Matrix4().makeRotationFromEuler(turn))
-      .multiply(new THREE.Matrix4().makeScale(...o.scale))
-      .multiply(stand);
+    const leanX = (rng() - 0.5) * o.lean;
+    const turn = rng() * Math.PI * 2;
+    const leanZ = (rng() - 0.5) * o.lean;
+    const m = compose(translation(o.x, 0, o.z), rotation(1, turn), rotation(0, leanX), rotation(2, leanZ), scaling(...o.scale), stand);
 
     const surface = (x: number, z: number) =>
       mix(fit.h + fit.gx * (x - fit.x) + fit.gz * (z - fit.z), heightAt(x, z), o.conform);
     const E = 0.004;
-    const g = model.geometry.clone().applyMatrix4(m);
-    const pos = g.attributes.position as THREE.BufferAttribute;
-    const nor = g.attributes.normal as THREE.BufferAttribute;
-    for (let i = 0; i < pos.count; i++) {
-      const x = pos.getX(i);
-      const z = pos.getZ(i);
+    const g = model.geometry.clone().transform(m);
+    const p = g.position;
+    const n = g.normal;
+    for (let i = 0; i < p.length; i += 3) {
+      const x = p[i];
+      const z = p[i + 2];
       const h = surface(x, z);
-      pos.setY(i, pos.getY(i) + h + LIFT);
+      p[i + 1] += h + LIFT;
       // Adding a height field shears the model, so shear its normals to match.
       const hx = (surface(x + E, z) - h) / E;
       const hz = (surface(x, z + E) - h) / E;
-      const ny = nor.getY(i);
-      const nx = nor.getX(i) - hx * ny;
-      const nz = nor.getZ(i) - hz * ny;
+      const ny = n[i + 1];
+      const nx = n[i] - hx * ny;
+      const nz = n[i + 2] - hz * ny;
       const len = Math.hypot(nx, ny, nz) || 1;
-      nor.setXYZ(i, nx / len, ny / len, nz / len);
+      n[i] = nx / len;
+      n[i + 1] = ny / len;
+      n[i + 2] = nz / len;
     }
     const list = baked.get(model.material);
     if (list) list.push(g);
@@ -1361,7 +1206,7 @@ function buildPizza(config: PizzaConfig, assets: Assets, photos: PhotoSet, baseP
   };
 
   /** Place up to the configured number of one topping. A topping whose photos failed to load is left off. */
-  const scatter = (kind: Kind, footprint: number, make: (model: Model, x: number, z: number) => void) => {
+  const scatter = (kind: Kind, footprint: number, make: (model: Part, x: number, z: number) => void) => {
     const variants = models[kind];
     if (!variants) return;
     for (let i = 0; i < config.toppings[kind]; i++) {
@@ -1415,67 +1260,30 @@ function buildPizza(config: PizzaConfig, assets: Assets, photos: PhotoSet, baseP
     stain(x, z, 0.056 * s, 0.25, 0.45);
   });
 
-  for (const [material, geometries] of baked) {
-    const mesh = new THREE.Mesh(geo(mergeGeometries(geometries)), material);
-    mesh.castShadow = mesh.receiveShadow = true;
-    group.add(mesh);
-  }
+  for (const [material, geometries] of baked) parts.push({ geometry: merge(geometries), material });
 
-  // One of each topping on its own, for the options panel thumbnails.
   const samples: BuiltPizza['samples'] = {};
   for (const kind of Object.keys(models) as Kind[]) {
     const model = models[kind]![0];
-    const sample = new THREE.Group();
-    sample.add(new THREE.Mesh(geo(model.geometry.clone().applyMatrix4(stand)), model.material));
-    samples[kind] = sample;
+    samples[kind] = { geometry: model.geometry.clone().transform(stand), material: model.material };
   }
 
   // The cheese is drawn with the stained copy of its colour map.
-  const stained = new THREE.CanvasTexture(stains);
-  stained.colorSpace = THREE.SRGBColorSpace;
-  stained.anisotropy = 8;
-  assets.textures.push(stained);
+  cheeseMaterial.map = createTexture(gl, stains, { srgb: true, anisotropy: 8 });
 
-  const dress = (pizza: THREE.Object3D) => {
-    const cheeseMat = mat(new THREE.MeshStandardMaterial({ ...cheeseParams, map: stained }));
-    addGrain(cheeseMat, { repeat: [30, 30], tint: 0.14, bump: 2 });
-    if (basePhotos.cheeseDetail) {
-      // The painted bubbles would sit at odds with the photographed ones.
-      cheeseMat.normalScale.setScalar(0.45);
-      photographCheese(cheeseMat, basePhotos.cheeseDetail);
-    }
-    const crustMat = mat(new THREE.MeshStandardMaterial(crustParams));
-    addGrain(crustMat, { repeat: [94, 10], tint: 0.22, bump: 6 });
-    (pizza.getObjectByName('cheese') as THREE.Mesh).material = cheeseMat;
-    (pizza.getObjectByName('crust') as THREE.Mesh).material = crustMat;
-  };
-
-  return { group, samples, dress };
+  return { parts, samples, textures: [cheeseMaterial.map] };
 }
 
 /* ------------------------------------------------------------------ */
 /* Scene                                                               */
 /* ------------------------------------------------------------------ */
 
-/** Vertical gradient used as the scene background. */
-function backdropTexture() {
-  const c = document.createElement('canvas');
-  c.width = 4;
-  c.height = 512;
-  const ctx = c.getContext('2d')!;
-  const g = ctx.createLinearGradient(0, 0, 0, 512);
-  // Tone mapping darkens this considerably, so the stops are brighter than they look here.
-  g.addColorStop(0, '#120704');
-  g.addColorStop(0.2, '#2a1108');
-  g.addColorStop(0.42, '#8a4a22');
-  g.addColorStop(0.55, '#4a2210');
-  g.addColorStop(1, '#160804');
-  ctx.fillStyle = g;
-  ctx.fillRect(0, 0, 4, 512);
-  const tex = new THREE.CanvasTexture(c);
-  tex.colorSpace = THREE.SRGBColorSpace;
-  tex.minFilter = THREE.LinearFilter;
-  return tex;
+const radians = (degrees: number) => (degrees * Math.PI) / 180;
+
+/** A camera `distance` from the middle of the pizza, raised `elevation` degrees above its surface. */
+function cameraAt(fov: number, aspect: number, elevation: number, distance: number): View {
+  const eye: Vec3 = [0, Math.sin(radians(elevation)) * distance, Math.cos(radians(elevation)) * distance];
+  return { projection: perspective(fov, aspect, 0.05, 200), view: lookAt(eye, [0, 0, 0]), eye };
 }
 
 export async function createPizza(
@@ -1485,155 +1293,121 @@ export async function createPizza(
 ): Promise<PizzaController> {
   const config: PizzaConfig = { ...defaultConfig, ...initial, toppings: { ...defaultConfig.toppings, ...initial.toppings } };
 
-  const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-  renderer.toneMapping = THREE.ACESFilmicToneMapping;
-  renderer.toneMappingExposure = 0.82;
-  renderer.shadowMap.enabled = config.shadows;
-  renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+  const gl = canvas.getContext('webgl2', { antialias: true, alpha: false, powerPreference: 'high-performance' });
+  if (!gl) throw new Error('This browser cannot draw the pizza: it has no WebGL2.');
+  const pixelRatio = Math.min(window.devicePixelRatio, 2);
+  const renderer = createRenderer(gl);
+  renderer.setGrain(createTexture(gl, grainMap(), { wrap: 'repeat', anisotropy: 4 }));
 
-  const scene = new THREE.Scene();
-  // Dark, warm backdrop: near-black overhead, an ember glow at the horizon.
-  scene.background = backdropTexture();
-  // Fog in the same glow so the far edge of the biggest pizza melts into it.
-  scene.fog = new THREE.Fog(new THREE.Color('#5a2c12'), 3.5, 12);
+  /* What is drawn each frame: every mesh of the pizza once per nesting level, and from where. */
+  let items: Item[] = [];
+  let view = cameraAt(config.fov, 1, config.elevation, 2.9);
+  const drawScene = (target: Target | null) => renderer.render(items, view, target, { shadows: config.shadows });
 
-  // Soft studio reflections so grease and cheese pick up highlights.
-  const pmrem = new THREE.PMREMGenerator(renderer);
-  const envMap = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
-  scene.environment = envMap;
-  scene.environmentIntensity = 0.35;
-  pmrem.dispose();
+  /* Look transitions: keep the frame from before a change, then wipe from it to the live result. */
+  const transition = createTransition(gl);
+  let before: Target | null = null;
+  let live: Target | null = null;
 
-  const camera = new THREE.PerspectiveCamera(config.fov, 1, 0.05, 200);
-
-  /* Look transitions: snapshot the current frame, swap the look, wipe to the live result. */
-  const transition = new TransitionPass();
-  const snapshot = new THREE.WebGLRenderTarget(1, 1, { type: THREE.HalfFloatType });
-  const copyQuad = new FullScreenQuad(new THREE.MeshBasicMaterial({ toneMapped: false }));
-
-  const makePipeline = () =>
-    createPipeline({ renderer, scene, camera, effect: config.effect, pixelSize: config.pixelSize, tail: [transition] });
+  const makePipeline = () => createPipeline({ gl, effect: config.effect, pixelSize: config.pixelSize, drawScene });
   let pipeline: EffectPipeline = makePipeline();
   const rebuildPipeline = () => {
     pipeline.dispose();
     pipeline = makePipeline();
-    pipeline.setSize(window.innerWidth, window.innerHeight);
+    pipeline.setSize(canvas.width, canvas.height);
   };
-
-  /** Render the current look once into the snapshot target. */
-  function captureFrame() {
-    const wasEnabled = transition.enabled;
-    transition.enabled = false;
-    pipeline.composer.renderToScreen = false;
-    pipeline.composer.render();
-    pipeline.composer.renderToScreen = true;
-    transition.enabled = wasEnabled;
-
-    (copyQuad.material as THREE.MeshBasicMaterial).map = pipeline.composer.readBuffer.texture;
-    renderer.setRenderTarget(snapshot);
-    copyQuad.render(renderer);
-    renderer.setRenderTarget(null);
-  }
 
   /** Run `change` with a wipe from the frame before it to the frames after. */
   function withTransition(change: () => void, duration = 700) {
-    captureFrame();
+    before ??= createTarget(gl!, 'image', canvas.width, canvas.height);
+    pipeline.render(before, elapsed);
     change();
-    transition.begin(snapshot.texture, performance.now(), duration);
+    transition.begin(performance.now(), duration);
   }
 
-  /* Lights */
-  const hemi = new THREE.HemisphereLight('#fff1dc', '#a8571a', 0.4);
-  scene.add(hemi);
-  // Key light from behind and to the side, low enough to rake across the
-  // surface: it picks out every bubble and glints off the grease.
-  const sun = new THREE.DirectionalLight('#ffe9cc', 2.1);
-  sun.position.set(-3.2, 3.1, -2.4);
-  sun.castShadow = config.shadows;
-  sun.shadow.mapSize.set(2048, 2048);
-  sun.shadow.camera.left = sun.shadow.camera.bottom = -2.5;
-  sun.shadow.camera.right = sun.shadow.camera.top = 2.5;
-  sun.shadow.camera.near = 0.5;
-  sun.shadow.camera.far = 15;
-  sun.shadow.bias = -0.0004;
-  sun.shadow.normalBias = 0.01;
-  sun.shadow.radius = 4;
-  scene.add(sun);
-  const fill = new THREE.DirectionalLight('#ffe2c4', 0.55);
-  fill.position.set(2.5, 2.5, 3);
-  scene.add(fill);
-
-  /* Pizza stack */
-  const root = new THREE.Group();
-  scene.add(root);
-
-  let assets: Assets = { geometries: [], materials: [], textures: [] };
-  let levelGroups: THREE.Group[] = [];
-  let samples: BuiltPizza['samples'] | null = null;
-
-  function disposeAssets() {
-    assets.geometries.forEach((g) => g.dispose());
-    assets.materials.forEach((m) => m.dispose());
-    assets.textures.forEach((t) => t.dispose());
-    assets = { geometries: [], materials: [], textures: [] };
-  }
+  /* Pizza */
+  let meshes: Mesh[] = [];
+  let ownTextures: WebGLTexture[] = [];
+  let samples: BuiltPizza['samples'] = {};
+  const painted = new Map<HTMLCanvasElement, WebGLTexture>();
+  let paintedSeed = config.seed;
+  const cached = (source: HTMLCanvasElement, options: TextureOptions) => {
+    let texture = painted.get(source);
+    if (!texture) painted.set(source, (texture = createTexture(gl, source, options)));
+    return texture;
+  };
 
   function rebuild() {
-    root.clear();
-    disposeAssets();
-    levelGroups = [];
-
-    const built = buildPizza(config, assets, photos, base);
-    const pizza = built.group;
-    samples = built.samples;
-    let parent: THREE.Object3D = root;
-    for (let i = 0; i < config.levels; i++) {
-      const level = new THREE.Group();
-      const copy = i === 0 ? pizza : pizza.clone();
-      built.dress(copy);
-      level.add(copy);
-      if (i > 0) {
-        level.scale.setScalar(config.ratio);
-        level.position.y = LEVEL_DROP; // sit just inside the recess
-      }
-      parent.add(level);
-      levelGroups.push(level);
-      parent = level;
+    meshes.forEach((mesh) => mesh.free());
+    ownTextures.forEach((texture) => gl!.deleteTexture(texture));
+    if (paintedSeed !== config.seed) {
+      // A new seed repaints the base, so the old paintings' textures go.
+      painted.forEach((texture) => gl!.deleteTexture(texture));
+      painted.clear();
+      paintedSeed = config.seed;
     }
+    const built = buildPizza(config, gl!, photos, base, cached);
+    meshes = built.parts.map((part) => renderer.upload(part.geometry, part.material));
+    ownTextures = built.textures;
+    samples = built.samples;
   }
 
   await prepaint(config.seed, onProgress);
-  const [photos, base] = await Promise.all([loadPhotos(), loadBasePhotos()]);
+  const [photos, base, studio] = await Promise.all([loadPhotos(gl), loadBasePhotos(gl), loadImage('/pizza/env.png')]);
+  renderer.setEnvironment(studio);
   rebuild();
 
   /* Camera framing */
-  function resize() {
-    const w = window.innerWidth;
-    const h = window.innerHeight;
-    renderer.setSize(w, h, false);
-    pipeline.setSize(w, h);
-    const pr = renderer.getPixelRatio();
-    snapshot.setSize(w * pr, h * pr);
-    transition.setResolution(w * pr, h * pr);
-    camera.aspect = w / h;
-    camera.fov = config.fov;
+  function aim() {
+    const aspect = canvas.width / canvas.height;
     // Keep the pizza filling the viewport: back off on portrait screens and narrow lenses.
-    const dist = (camera.aspect < 1 ? 2.9 / Math.max(camera.aspect, 0.5) : 2.9) * (42 / config.fov);
-    const elev = THREE.MathUtils.degToRad(THREE.MathUtils.clamp(config.elevation, 10, 89.9));
-    camera.position.set(0, Math.sin(elev) * dist, Math.cos(elev) * dist);
-    camera.lookAt(0, 0, 0);
-    camera.updateProjectionMatrix();
+    const distance = (aspect < 1 ? 2.9 / Math.max(aspect, 0.5) : 2.9) * (42 / config.fov);
+    view = cameraAt(config.fov, aspect, Math.min(Math.max(config.elevation, 10), 89.9), distance);
+  }
+  function resize() {
+    canvas.width = Math.floor(window.innerWidth * pixelRatio);
+    canvas.height = Math.floor(window.innerHeight * pixelRatio);
+    pipeline.setSize(canvas.width, canvas.height);
+    deleteTarget(before);
+    deleteTarget(live);
+    before = live = null;
+    aim();
   }
   resize();
   window.addEventListener('resize', resize);
 
   /* Animation */
   let phase = 0; // 0..1 progress through one zoom cycle
-  let spin = 0; // accumulated rotation of the root, radians
+  let spin = 0; // accumulated rotation of the whole stack, radians
   let last = performance.now();
   let elapsed = 0;
   let raf = 0;
+
+  /** Work out where every level of the stack sits for the current phase and spin. */
+  function pose() {
+    // Level 1 fills the frame at phase 0 and level 2 at phase 1.
+    const k = config.ratio;
+    const scale = Math.pow(k, -(1 + phase));
+    // Each level sits LEVEL_DROP below its parent, so level n is at
+    // LEVEL_DROP * (1 - k^n) / (1 - k) in the stack's own space. Lift the stack so the
+    // level currently in focus (n = 1 + phase) always sits at the origin,
+    // otherwise the stack drifts down over a cycle and snaps back on reset.
+    const lift = (-scale * LEVEL_DROP * (1 - Math.pow(k, 1 + phase))) / (1 - k);
+    // Each level sits just inside its parent's recess, `ratio` its size.
+    const nest = compose(translation(0, LEVEL_DROP, 0), rotation(1, phase * config.innerSpinTurns * Math.PI * 2), scaling(k));
+    const levels: Mat4[] = [compose(translation(0, lift, 0), rotation(1, spin), scaling(scale))];
+    for (let i = 1; i < config.levels; i++) levels.push(multiply(levels[i - 1], nest));
+    items = meshes.flatMap((mesh) => levels.map((matrix) => ({ mesh, matrix })));
+  }
+
+  function draw() {
+    pose();
+    if (transition.running && before) {
+      live ??= createTarget(gl!, 'image', canvas.width, canvas.height);
+      pipeline.render(live, elapsed);
+      transition.draw(live, before, null);
+    } else pipeline.render(null, elapsed);
+  }
 
   function frame(now: number) {
     raf = requestAnimationFrame(frame);
@@ -1655,44 +1429,40 @@ export async function createPizza(
     }
     spin = ((spin % (Math.PI * 2)) + Math.PI * 2) % (Math.PI * 2);
 
-    // Level 1 fills the frame at phase 0 and level 2 at phase 1.
-    const k = config.ratio;
-    const scale = Math.pow(k, -(1 + phase));
-    root.scale.setScalar(scale);
-    // Each level sits LEVEL_DROP below its parent, so level n is at
-    // LEVEL_DROP * (1 - k^n) / (1 - k) in root space. Lift the root so the
-    // level currently in focus (n = 1 + phase) always sits at the origin,
-    // otherwise the stack drifts down over a cycle and snaps back on reset.
-    root.position.y = (-scale * LEVEL_DROP * (1 - Math.pow(k, 1 + phase))) / (1 - k);
-    root.rotation.y = spin;
-    const inner = phase * config.innerSpinTurns * Math.PI * 2;
-    for (let i = 1; i < levelGroups.length; i++) levelGroups[i].rotation.y = inner;
+    if (import.meta.env.DEV) {
+      // Development only: hold the animation at a chosen moment, to compare frames.
+      const seek = (window as unknown as { __seek?: { phase: number; spin: number } }).__seek;
+      if (seek) ({ phase, spin } = seek);
+    }
 
-    pipeline.tick(elapsed);
     transition.tick(now);
-    pipeline.composer.render();
+    draw();
   }
-  // Warm the shaders before the first frame so the reveal doesn't stutter.
-  onProgress('Into the oven', 6 / 7);
+  // Draw once before the reveal, so the first frame is already on the canvas.
+  onProgress('Into the oven', 2 / 3);
   await breathe();
-  await renderer.compileAsync(scene, camera);
-  pipeline.composer.render();
+  draw();
   onProgress('Ready', 1);
 
   raf = requestAnimationFrame(frame);
 
-  /** Copy a render target into a PNG data URL (flipping GL's bottom-up rows). */
-  function targetToDataUrl(rt: THREE.WebGLRenderTarget) {
-    const { width, height } = rt;
-    const pixels = new Uint8Array(width * height * 4);
-    renderer.readRenderTargetPixels(rt, 0, 0, width, height, pixels);
+  /** A target's picture as a PNG data URL. */
+  function targetToDataUrl(target: Target) {
+    const { width, height } = target;
+    const pixels = renderer.read(target);
     const out = document.createElement('canvas');
     out.width = width;
     out.height = height;
     const ctx = out.getContext('2d')!;
     const image = ctx.createImageData(width, height);
     const row = width * 4;
+    // GL's rows run bottom-up.
     for (let y = 0; y < height; y++) image.data.set(pixels.subarray(y * row, (y + 1) * row), (height - 1 - y) * row);
+    // Smoothed edges come back with their colour already faded by their coverage; a PNG wants it unfaded.
+    for (let i = 0; i < image.data.length; i += 4) {
+      const alpha = image.data[i + 3];
+      if (alpha > 0 && alpha < 255) for (let c = 0; c < 3; c++) image.data[i + c] = Math.min(255, (image.data[i + c] * 255) / alpha);
+    }
     ctx.putImageData(image, 0, 0);
     return out.toDataURL('image/png');
   }
@@ -1700,67 +1470,50 @@ export async function createPizza(
   async function renderPreviews(size = 96): Promise<Previews> {
     const looks = {} as Record<EffectName, string>;
     const toppings = {} as Record<keyof ToppingCounts, string>;
-    // A fixed, flattering camera so the tiles match whatever angle the page is at.
-    const previousAspect = camera.aspect;
-    camera.aspect = 1;
-    camera.fov = 42;
-    const elev = THREE.MathUtils.degToRad(50);
-    camera.position.set(0, Math.sin(elev) * 2.9, Math.cos(elev) * 2.9);
-    camera.lookAt(0, 0, 0);
-    camera.updateProjectionMatrix();
 
-    // Every look, rendered from the live scene into a small square target.
+    // Every look, drawn from the live pizza with a fixed, flattering camera so the tiles match whatever angle the page is at.
+    const tile = cameraAt(42, 1, 50, 2.9);
+    const picture = createTarget(gl!, 'image', size, size);
     for (const effect of EFFECTS) {
-      const target = new THREE.WebGLRenderTarget(size, size, { type: THREE.UnsignedByteType });
-      const p = createPipeline({ renderer, scene, camera, effect, pixelSize: Math.max(2, Math.round(config.pixelSize / 2)), target });
+      const p = createPipeline({
+        gl: gl!,
+        effect,
+        pixelSize: Math.max(2, Math.round(config.pixelSize / 2)),
+        drawScene: (target) => renderer.render(items, tile, target, { shadows: config.shadows }),
+      });
       p.setSize(size, size);
-      p.tick(1.3);
-      p.composer.render();
-      looks[effect] = targetToDataUrl(p.composer.readBuffer);
+      p.render(picture, 1.3);
+      looks[effect] = targetToDataUrl(picture);
       p.dispose();
       await breathe();
     }
-    camera.aspect = previousAspect;
-    resize();
+    deleteTarget(picture);
 
-    // Each topping on its own against a transparent background.
-    const stage = new THREE.Scene();
-    stage.environment = scene.environment;
-    stage.environmentIntensity = scene.environmentIntensity;
-    stage.add(hemi.clone(), fill.clone());
-    const key = new THREE.DirectionalLight(sun.color, sun.intensity);
-    key.position.copy(sun.position);
-    stage.add(key);
-    const cam = new THREE.PerspectiveCamera(28, 1, 0.01, 10);
-    const holder = new THREE.Group();
-    stage.add(holder);
-
-    const target = new THREE.WebGLRenderTarget(size, size, { type: THREE.UnsignedByteType });
-    const composer = new EffectComposer(renderer, target);
-    composer.renderToScreen = false;
-    const pass = new RenderPass(stage, cam);
-    pass.clearColor = new THREE.Color(0x000000);
-    pass.clearAlpha = 0;
-    composer.addPass(pass);
-    composer.addPass(new OutputPass());
-    composer.setSize(size, size);
-
-    for (const kind of ['pepperoni', 'mushroom', 'basil', 'olive', 'jalapeno', 'ham'] as const) {
-      const source = samples?.[kind];
-      if (!source) continue;
-      const clone = source.clone();
-      holder.clear();
-      holder.add(clone);
-      const sphere = new THREE.Box3().setFromObject(clone).getBoundingSphere(new THREE.Sphere());
-      const dist = (sphere.radius * 1.15) / Math.sin(THREE.MathUtils.degToRad(cam.fov / 2));
-      cam.position.copy(sphere.center).add(new THREE.Vector3(0.35, 1, 0.55).normalize().multiplyScalar(dist));
-      cam.lookAt(sphere.center);
-      composer.render();
-      toppings[kind] = targetToDataUrl(composer.readBuffer);
+    // Each topping on its own against a clear background.
+    const stage = createTarget(gl!, 'scene', size, size);
+    const from = normalize([0.35, 1, 0.55]);
+    for (const kind of Object.keys(samples) as Kind[]) {
+      const { geometry, material } = samples[kind]!;
+      const mesh = renderer.upload(geometry, material);
+      // Frame the ball that encloses the topping's bounding box.
+      const low: Vec3 = [Infinity, Infinity, Infinity];
+      const high: Vec3 = [-Infinity, -Infinity, -Infinity];
+      geometry.position.forEach((v, i) => {
+        low[i % 3] = Math.min(low[i % 3], v);
+        high[i % 3] = Math.max(high[i % 3], v);
+      });
+      const centre = low.map((v, i) => (v + high[i]) / 2) as Vec3;
+      const radius = Math.hypot(high[0] - low[0], high[1] - low[1], high[2] - low[2]) / 2;
+      const distance = (radius * 1.15) / Math.sin(radians(14));
+      const eye = centre.map((v, i) => v + from[i] * distance) as Vec3;
+      renderer.render([{ mesh, matrix: identity() }], { projection: perspective(28, 1, 0.01, 10), view: lookAt(eye, centre), eye }, stage, {
+        stage: true,
+      });
+      toppings[kind] = targetToDataUrl(stage);
+      mesh.free();
       await breathe();
     }
-    composer.dispose();
-    stage.clear();
+    deleteTarget(stage);
 
     return { looks, toppings };
   }
@@ -1778,12 +1531,7 @@ export async function createPizza(
       const apply = () => {
         if (patch.effect !== undefined) rebuildPipeline();
         else if (patch.pixelSize !== undefined) pipeline.setPixelSize(patch.pixelSize);
-        if (patch.elevation !== undefined || patch.fov !== undefined) resize();
-        if (patch.shadows !== undefined) {
-          renderer.shadowMap.enabled = patch.shadows;
-          sun.castShadow = patch.shadows;
-          assets.materials.forEach((m) => (m.needsUpdate = true));
-        }
+        if (patch.elevation !== undefined || patch.fov !== undefined) aim();
         if (needsRebuild) rebuild();
       };
 
@@ -1794,21 +1542,8 @@ export async function createPizza(
     dispose() {
       cancelAnimationFrame(raf);
       window.removeEventListener('resize', resize);
-      disposeAssets();
-      for (const sheet of Object.values(photos)) {
-        sheet.texture.dispose();
-        sheet.normalMap.dispose();
-      }
-      base.crust?.dispose();
-      base.cheeseDetail?.dispose();
-      grainTexture?.dispose();
-      grainTexture = null;
-      pipeline.dispose();
-      transition.dispose();
-      snapshot.dispose();
-      copyQuad.dispose();
-      envMap.dispose();
-      renderer.dispose();
+      // Dropping the context frees everything made with it.
+      gl.getExtension('WEBGL_lose_context')?.loseContext();
     },
   };
 }

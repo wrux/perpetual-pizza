@@ -1,10 +1,4 @@
-import * as THREE from 'three';
-import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer.js';
-import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js';
-import { RenderPixelatedPass } from 'three/examples/jsm/postprocessing/RenderPixelatedPass.js';
-import { OutputPass } from 'three/examples/jsm/postprocessing/OutputPass.js';
-import { ShaderPass } from 'three/examples/jsm/postprocessing/ShaderPass.js';
-import { Pass, FullScreenQuad } from 'three/examples/jsm/postprocessing/Pass.js';
+import { COPY_FRAGMENT, createScreenPass, createTarget, deleteTarget, type GL, type Target } from './gl';
 
 export const EFFECTS = [
   'none',
@@ -29,23 +23,8 @@ export const effectLabels: Record<EffectName, string> = {
   lsd: 'Acid',
 };
 
-const VERTEX = /* glsl */ `
-  varying vec2 vUv;
-  void main() {
-    vUv = uv;
-    gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
-  }
-`;
-
 /** Scanlines, colour fringing, tracking wobble and tape noise. Runs on display-ready sRGB. */
-const VhsShader = {
-  uniforms: {
-    tDiffuse: { value: null as THREE.Texture | null },
-    resolution: { value: new THREE.Vector2(1, 1) },
-    time: { value: 0 },
-  },
-  vertexShader: VERTEX,
-  fragmentShader: /* glsl */ `
+const VHS = /* glsl */ `
     uniform sampler2D tDiffuse;
     uniform vec2 resolution;
     uniform float time;
@@ -86,18 +65,10 @@ const VhsShader = {
 
       gl_FragColor = vec4(col, 1.0);
     }
-  `,
-};
+  `;
 
 /** Old curved CRT: barrel distortion, bezel, phosphor mask, scanlines, fringing, flicker and static. */
-const CrtShader = {
-  uniforms: {
-    tDiffuse: { value: null as THREE.Texture | null },
-    resolution: { value: new THREE.Vector2(1, 1) },
-    time: { value: 0 },
-  },
-  vertexShader: VERTEX,
-  fragmentShader: /* glsl */ `
+const CRT = /* glsl */ `
     uniform sampler2D tDiffuse;
     uniform vec2 resolution;
     uniform float time;
@@ -165,18 +136,10 @@ const CrtShader = {
 
       gl_FragColor = vec4(col, 1.0);
     }
-  `,
-};
+  `;
 
 /** Rippling distortion and a rolling rainbow hue shift. Runs on display-ready sRGB. */
-const PsychedelicShader = {
-  uniforms: {
-    tDiffuse: { value: null as THREE.Texture | null },
-    resolution: { value: new THREE.Vector2(1, 1) },
-    time: { value: 0 },
-  },
-  vertexShader: VERTEX,
-  fragmentShader: /* glsl */ `
+const PSYCHEDELIC = /* glsl */ `
     uniform sampler2D tDiffuse;
     uniform vec2 resolution;
     uniform float time;
@@ -226,19 +189,10 @@ const PsychedelicShader = {
       float bands = 0.85 + 0.15 * sin(hsv.z * 40.0 + dist * 20.0 - time * 4.0);
       gl_FragColor = vec4(col * bands, 1.0);
     }
-  `,
-};
+  `;
 
 /** Radial wipe from the previous frame (tPrev) to the live one, soft-edged. */
-const TransitionShader = {
-  uniforms: {
-    tDiffuse: { value: null as THREE.Texture | null },
-    tPrev: { value: null as THREE.Texture | null },
-    resolution: { value: new THREE.Vector2(1, 1) },
-    progress: { value: 1 },
-  },
-  vertexShader: VERTEX,
-  fragmentShader: /* glsl */ `
+const TRANSITION = /* glsl */ `
     uniform sampler2D tDiffuse;
     uniform sampler2D tPrev;
     uniform vec2 resolution;
@@ -259,55 +213,10 @@ const TransitionShader = {
       float ring = (1.0 - smoothstep(0.0, 0.08, abs(d - front + 0.15))) * (1.0 - progress) * 0.18;
       gl_FragColor = mix(next, prev, wipe) + vec4(ring);
     }
-  `,
-};
-
-/** A pass that cross-wipes from a stored frame to the live output. Kept across pipeline rebuilds. */
-export class TransitionPass extends ShaderPass {
-  private start = 0;
-  private duration = 700;
-
-  constructor() {
-    super(TransitionShader);
-    this.enabled = false;
-  }
-
-  /** Begin wiping from `previous` to whatever is now being rendered. */
-  begin(previous: THREE.Texture, now: number, duration = 700) {
-    this.uniforms.tPrev.value = previous;
-    this.uniforms.progress.value = 0;
-    this.start = now;
-    this.duration = duration;
-    this.enabled = true;
-  }
-
-  get running() {
-    return this.enabled;
-  }
-
-  /** Advance the wipe; disables itself when finished. */
-  tick(now: number) {
-    if (!this.enabled) return;
-    const t = Math.min((now - this.start) / this.duration, 1);
-    this.uniforms.progress.value = t * t * (3 - 2 * t);
-    if (t >= 1) this.enabled = false;
-  }
-
-  setResolution(w: number, h: number) {
-    this.uniforms.resolution.value.set(w, h);
-  }
-}
+  `;
 
 /** Liquid melt, breathing, colour cycling and afterimage trails. Keeps its own feedback buffer. */
-const LsdShader = {
-  uniforms: {
-    tDiffuse: { value: null as THREE.Texture | null },
-    tEcho: { value: null as THREE.Texture | null },
-    resolution: { value: new THREE.Vector2(1, 1) },
-    time: { value: 0 },
-  },
-  vertexShader: VERTEX,
-  fragmentShader: /* glsl */ `
+const LSD = /* glsl */ `
     uniform sampler2D tDiffuse;
     uniform sampler2D tEcho;
     uniform vec2 resolution;
@@ -370,52 +279,7 @@ const LsdShader = {
 
       gl_FragColor = vec4(col, 1.0);
     }
-  `,
-};
-
-/** A shader pass that feeds its own previous output back in as tEcho. */
-class FeedbackPass extends Pass {
-  readonly uniforms = THREE.UniformsUtils.clone(LsdShader.uniforms);
-  private readonly material = new THREE.ShaderMaterial({
-    uniforms: this.uniforms,
-    vertexShader: LsdShader.vertexShader,
-    fragmentShader: LsdShader.fragmentShader,
-  });
-  private readonly quad = new FullScreenQuad(this.material);
-  private readonly copyMaterial = new THREE.MeshBasicMaterial({ toneMapped: false });
-  private readonly copyQuad = new FullScreenQuad(this.copyMaterial);
-  private echoA = new THREE.WebGLRenderTarget(1, 1);
-  private echoB = new THREE.WebGLRenderTarget(1, 1);
-
-  setSize(width: number, height: number) {
-    this.echoA.setSize(width, height);
-    this.echoB.setSize(width, height);
-  }
-
-  render(renderer: THREE.WebGLRenderer, writeBuffer: THREE.WebGLRenderTarget, readBuffer: THREE.WebGLRenderTarget) {
-    this.uniforms.tDiffuse.value = readBuffer.texture;
-    this.uniforms.tEcho.value = this.echoA.texture;
-    // Composite into the spare echo buffer, which becomes next frame's history.
-    renderer.setRenderTarget(this.echoB);
-    this.quad.render(renderer);
-    // Then copy it out.
-    this.copyMaterial.map = this.echoB.texture;
-    renderer.setRenderTarget(this.renderToScreen ? null : writeBuffer);
-    if (this.clear) renderer.clear();
-    this.copyQuad.render(renderer);
-    [this.echoA, this.echoB] = [this.echoB, this.echoA];
-  }
-
-  dispose() {
-    this.material.dispose();
-    this.copyMaterial.dispose();
-    this.quad.dispose();
-    this.copyQuad.dispose();
-    this.echoA.dispose();
-    this.echoB.dispose();
-  }
-}
-
+  `;
 
 /* Shared GLSL helpers pasted into the single-pass looks below. */
 const GLSL_COMMON = /* glsl */ `
@@ -446,18 +310,8 @@ const GLSL_COMMON = /* glsl */ `
   }
 `;
 
-const simpleShader = (body: string) => ({
-  uniforms: {
-    tDiffuse: { value: null as THREE.Texture | null },
-    resolution: { value: new THREE.Vector2(1, 1) },
-    time: { value: 0 },
-  },
-  vertexShader: VERTEX,
-  fragmentShader: GLSL_COMMON + body,
-});
-
 /** Kuwahara filter: the frame dissolves into brushy patches of flat colour. */
-const OilShader = simpleShader(/* glsl */ `
+const OIL = GLSL_COMMON + /* glsl */ `
   const int R = 3;
   void main() {
     vec2 px = 1.0 / resolution;
@@ -490,10 +344,10 @@ const OilShader = simpleShader(/* glsl */ `
     col = mix(vec3(l), col, 1.25) + weave;
     gl_FragColor = vec4(col, 1.0);
   }
-`);
+`;
 
 /** Old projected film: faded sepia, soft focus, gate weave, flicker, scratches, dust and heavy grain. */
-const OldFilmShader = simpleShader(/* glsl */ `
+const FILM = GLSL_COMMON + /* glsl */ `
   void main() {
     // Projectors ran at 16 to 18 frames a second; quantise time so the damage judders like that.
     float frame = floor(time * 16.0);
@@ -556,121 +410,174 @@ const OldFilmShader = simpleShader(/* glsl */ `
 
     gl_FragColor = vec4(col, 1.0);
   }
-`);
+`;
+
+/**
+ * Chunky pixels with drawn-in edges: the pizza is rendered small, with each
+ * pixel's depth and facing kept, and outlines are found where those jump.
+ * `resolution` is the small picture's size, then one pixel of it in uv.
+ */
+const PIXEL = /* glsl */ `
+  uniform sampler2D tDiffuse;
+  uniform sampler2D tDepth;
+  uniform sampler2D tNormal;
+  uniform vec4 resolution;
+  varying vec2 vUv;
+
+  float depthAt(int x, int y) { return texture2D(tDepth, vUv + vec2(x, y) * resolution.zw).r; }
+  vec3 normalAt(int x, int y) { return texture2D(tNormal, vUv + vec2(x, y) * resolution.zw).rgb * 2.0 - 1.0; }
+
+  // A step down in depth to a neighbour: the silhouette of something in front.
+  float depthEdge(float depth) {
+    float diff = 0.0;
+    diff += clamp(depthAt(1, 0) - depth, 0.0, 1.0);
+    diff += clamp(depthAt(-1, 0) - depth, 0.0, 1.0);
+    diff += clamp(depthAt(0, 1) - depth, 0.0, 1.0);
+    diff += clamp(depthAt(0, -1) - depth, 0.0, 1.0);
+    return floor(smoothstep(0.01, 0.02, diff) * 2.0) / 2.0;
+  }
+
+  // A crease: the neighbour faces another way. Only one side of each crease is marked.
+  float crease(int x, int y, float depth, vec3 normal) {
+    float depthDiff = depthAt(x, y) - depth;
+    vec3 other = normalAt(x, y);
+    float facing = clamp(smoothstep(-0.01, 0.01, dot(normal - other, vec3(1.0))), 0.0, 1.0);
+    float nearer = clamp(sign(depthDiff * 0.25 + 0.0025), 0.0, 1.0);
+    return (1.0 - dot(normal, other)) * nearer * facing;
+  }
+
+  void main() {
+    vec4 texel = texture2D(tDiffuse, vUv);
+    float depth = depthAt(0, 0);
+    vec3 normal = normalAt(0, 0);
+    float outline = depthEdge(depth);
+    float creases = step(0.1, crease(0, -1, depth, normal) + crease(0, 1, depth, normal) + crease(-1, 0, depth, normal) + crease(1, 0, depth, normal));
+    // Silhouettes darken, creases catch the light. The amounts are for linear
+    // light; the picture is already encoded for the screen, hence the power.
+    gl_FragColor = texel * pow(outline > 0.0 ? 1.0 - 0.3 * outline : 1.0 + 0.25 * creases, 0.45);
+  }
+`;
 
 /** Looks that are one shader over the plain render. */
-const singlePassLooks: Partial<Record<EffectName, ReturnType<typeof simpleShader>>> = {
-  oil: OilShader,
-  film: OldFilmShader,
+const singlePassLooks: Partial<Record<EffectName, string>> = {
+  oil: OIL,
+  film: FILM,
+  vhs: VHS,
+  crt: CRT,
+  psychedelic: PSYCHEDELIC,
 };
 
+/** A wipe from a stored frame to the live one, used when the look or the pizza changes. */
+export interface Transition {
+  readonly running: boolean;
+  /** Begin wiping; the frames are supplied each time it is drawn. */
+  begin(now: number, duration?: number): void;
+  /** Advance the wipe; it stops itself when finished. */
+  tick(now: number): void;
+  draw(live: Target, previous: Target, target: Target | null): void;
+}
+
+export function createTransition(gl: GL): Transition {
+  const pass = createScreenPass(gl, TRANSITION);
+  let start = 0;
+  let duration = 700;
+  let progress = 1;
+  let running = false;
+  return {
+    get running() {
+      return running;
+    },
+    begin(now, length = 700) {
+      start = now;
+      duration = length;
+      progress = 0;
+      running = true;
+    },
+    tick(now) {
+      if (!running) return;
+      const t = Math.min((now - start) / duration, 1);
+      progress = t * t * (3 - 2 * t);
+      if (t >= 1) running = false;
+    },
+    draw(live, previous, target) {
+      pass.draw(target, { tDiffuse: live.texture, tPrev: previous.texture, resolution: [live.width, live.height], progress });
+    },
+  };
+}
+
 export interface EffectContext {
-  renderer: THREE.WebGLRenderer;
-  scene: THREE.Scene;
-  camera: THREE.Camera;
+  gl: GL;
   effect: EffectName;
+  /** Pixel block size for the pixel look, in device pixels. */
   pixelSize: number;
-  /** Passes appended after the look, owned by the caller (not disposed with the pipeline). */
-  tail?: Pass[];
-  /** Render into this target instead of the canvas (used for thumbnails). */
-  target?: THREE.WebGLRenderTarget;
+  /** Draw the plain pizza into a target, or onto the canvas for null. */
+  drawScene(target: Target | null): void;
 }
 
 export interface EffectPipeline {
-  composer: EffectComposer;
+  /** Draw the pizza in this look into a target, or onto the canvas for null. */
+  render(target: Target | null, elapsed: number): void;
+  /** Size of the finished picture, in device pixels. */
   setSize(width: number, height: number): void;
-  /** Call once per frame before rendering. */
-  tick(elapsed: number): void;
   setPixelSize(size: number): void;
   dispose(): void;
 }
 
-export function createPipeline(ctx: EffectContext): EffectPipeline {
-  const { renderer, scene, camera, effect } = ctx;
-  const composer = new EffectComposer(renderer, ctx.target);
-  if (ctx.target) composer.renderToScreen = false;
-  const passes: Pass[] = [];
-  const add = <T extends Pass>(p: T): T => {
-    composer.addPass(p);
-    passes.push(p);
-    return p;
+export function createPipeline({ gl, effect, pixelSize, drawScene }: EffectContext): EffectPipeline {
+  const blocky = effect === 'pixelate';
+  const source = blocky ? PIXEL : effect === 'lsd' ? LSD : singlePassLooks[effect];
+  const look = source ? createScreenPass(gl, source) : null;
+  const copy = createScreenPass(gl, COPY_FRAGMENT);
+  let width = 1;
+  let height = 1;
+  // Made when first needed: the default look draws straight onto the canvas and needs none of them.
+  let scene: Target | null = null;
+  /** The acid look's afterimages: last frame's result, and a spare to draw this frame's into. */
+  let echo: Target[] | null = null;
+
+  const release = () => {
+    deleteTarget(scene);
+    echo?.forEach(deleteTarget);
+    scene = echo = null;
   };
 
-  const resolutionPasses: Array<{ uniforms: { resolution: { value: THREE.Vector2 } } }> = [];
-  let pixelated: RenderPixelatedPass | null = null;
-  const timedPasses: Array<{ uniforms: { time: { value: number } } }> = [];
-
-  switch (effect) {
-    case 'pixelate':
-      pixelated = add(new RenderPixelatedPass(ctx.pixelSize, scene, camera, { normalEdgeStrength: 0.25, depthEdgeStrength: 0.3 }));
-      add(new OutputPass());
-      break;
-    case 'vhs':
-      add(new RenderPass(scene, camera));
-      add(new OutputPass());
-      {
-        const vhs = add(new ShaderPass(VhsShader));
-        resolutionPasses.push(vhs);
-        timedPasses.push(vhs);
-      }
-      break;
-    case 'crt':
-      add(new RenderPass(scene, camera));
-      add(new OutputPass());
-      {
-        const crt = add(new ShaderPass(CrtShader));
-        resolutionPasses.push(crt);
-        timedPasses.push(crt);
-      }
-      break;
-    case 'lsd':
-      add(new RenderPass(scene, camera));
-      add(new OutputPass());
-      {
-        const lsd = add(new FeedbackPass());
-        resolutionPasses.push(lsd);
-        timedPasses.push(lsd);
-      }
-      break;
-    case 'psychedelic':
-      add(new RenderPass(scene, camera));
-      add(new OutputPass());
-      {
-        const trip = add(new ShaderPass(PsychedelicShader));
-        resolutionPasses.push(trip);
-        timedPasses.push(trip);
-      }
-      break;
-    default: {
-      add(new RenderPass(scene, camera));
-      add(new OutputPass());
-      const shader = singlePassLooks[effect];
-      if (shader) {
-        const p = add(new ShaderPass(shader));
-        resolutionPasses.push(p);
-        timedPasses.push(p);
-      }
-    }
-  }
-
-  ctx.tail?.forEach((p) => composer.addPass(p));
-
   return {
-    composer,
-    setSize(w, h) {
-      composer.setSize(w, h);
-      const pr = renderer.getPixelRatio();
-      resolutionPasses.forEach((p) => p.uniforms.resolution.value.set(w * pr, h * pr));
+    render(target, time) {
+      if (!look && !target) return drawScene(null);
+      scene ??= blocky
+        ? createTarget(gl, 'blocky', Math.max(1, Math.floor(width / pixelSize)), Math.max(1, Math.floor(height / pixelSize)))
+        : createTarget(gl, 'scene', width, height);
+      drawScene(scene);
+      const resolution = [width, height];
+      if (!look) copy.draw(target, { tDiffuse: scene.texture });
+      else if (blocky) {
+        look.draw(target, {
+          tDiffuse: scene.texture,
+          tDepth: scene.depth!,
+          tNormal: scene.normal!,
+          resolution: [scene.width, scene.height, 1 / scene.width, 1 / scene.height],
+        });
+      } else if (effect === 'lsd') {
+        echo ??= [createTarget(gl, 'image', width, height), createTarget(gl, 'image', width, height)];
+        // Composite into the spare, which becomes next frame's history, then copy it out.
+        look.draw(echo[1], { tDiffuse: scene.texture, tEcho: echo[0].texture, resolution, time });
+        copy.draw(target, { tDiffuse: echo[1].texture });
+        echo.reverse();
+      } else look.draw(target, { tDiffuse: scene.texture, resolution, time });
     },
-    tick(elapsed) {
-      timedPasses.forEach((p) => (p.uniforms.time.value = elapsed));
+    setSize(w, h) {
+      width = w;
+      height = h;
+      release();
     },
     setPixelSize(size) {
-      pixelated?.setPixelSize(size);
+      pixelSize = size;
+      release();
     },
     dispose() {
-      passes.forEach((p) => p.dispose?.());
-      composer.dispose();
+      release();
+      look?.dispose();
+      copy.dispose();
     },
   };
 }
