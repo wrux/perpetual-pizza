@@ -1,5 +1,10 @@
-Name: Perpetual Pizza
-Site: https://perpetual.pizza/
-Twitter: @wruz
+/* TEAM */
+Made by: Callum Bonnyman (wrux)
+Site: https://wrux.com
+GitHub: https://github.com/wrux
 
-Doctype: HTML5
+/* SITE */
+Name: Perpetual Pizza
+URL: https://perpetual.pizza/
+Source: https://github.com/wrux/perpetual-pizza
+Built with: Astro, WebGL2

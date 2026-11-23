@@ -11,8 +11,53 @@ export interface Props {
 const defaultCover = '/cover.jpg';
 const defaultTitle = 'Perpetual Pizza | The never ending digital pizza';
 const defaultDescription =
-  'Watch the never ending digital pizza spin hypnotize you into ordering a pizza.';
+  'Perpetual Pizza is a never ending digital pizza that zooms in forever. Choose the toppings, speed and look. A web toy by Callum Bonnyman (wrux).';
 const siteUrl = 'https://perpetual.pizza';
+
+/*
+ * Who made this and what it is, written out for search engines. Without it
+ * the page is little more than a canvas, and Google guesses at what
+ * "Perpetual Pizza" means.
+ */
+const author = {
+  '@type': 'Person',
+  '@id': 'https://wrux.com/#person',
+  name: 'Callum Bonnyman',
+  alternateName: 'wrux',
+  url: 'https://wrux.com',
+  sameAs: ['https://github.com/wrux'],
+};
+const structuredData = {
+  '@context': 'https://schema.org',
+  '@graph': [
+    {
+      '@type': 'WebSite',
+      '@id': `${siteUrl}/#website`,
+      name: 'Perpetual Pizza',
+      alternateName: 'perpetual.pizza',
+      url: `${siteUrl}/`,
+      inLanguage: 'en',
+      author: { '@id': author['@id'] },
+      publisher: { '@id': author['@id'] },
+    },
+    {
+      '@type': 'WebApplication',
+      '@id': `${siteUrl}/#app`,
+      name: 'Perpetual Pizza',
+      url: `${siteUrl}/`,
+      description:
+        'A never ending digital pizza: the centre of every pizza is another pizza, so it zooms in forever. Visitors can change the toppings, speed, spin, camera and visual style (film, VHS, CRT, pixel and more), and share a link to their pizza.',
+      applicationCategory: 'EntertainmentApplication',
+      operatingSystem: 'Any web browser with WebGL2',
+      isAccessibleForFree: true,
+      image: `${siteUrl}/cover.jpg`,
+      author: { '@id': author['@id'] },
+      isPartOf: { '@id': `${siteUrl}/#website` },
+      codeRepository: 'https://github.com/wrux/perpetual-pizza',
+    },
+    author,
+  ],
+};
 const currentPath = Astro.url.pathname;
 
 // Every picture the pizza is built from, so the browser can fetch them while the script is still on its way.
@@ -33,6 +78,7 @@ const {
 
     <title>{title}</title>
     <meta name="description" content={description} />
+    <meta name="author" content="Callum Bonnyman" />
     <meta name="robots" content="index,follow" />
     <meta name="googlebot" content="index,follow" />
     <meta name="google" content="nositelinkssearchbox" />
@@ -50,12 +96,17 @@ const {
     <link rel="shortcut icon" href="/favicon.ico" />
     <meta name="theme-color" content="#d00000" />
 
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="Perpetual Pizza" />
     <meta property="og:image:width" content="1080" />
     <meta property="og:image:height" content="1080" />
     <meta property="og:title" content={title} />
     <meta property="og:description" content={description} />
     <meta property="og:url" content={`${siteUrl}${currentPath}`} />
-    <meta property="og:image" content={cover} />
+    <meta property="og:image" content={new URL(cover, siteUrl).href} />
+    <meta property="og:image:alt" content="A pepperoni and mushroom pizza sitting on a bigger pizza, with a smaller pizza at its centre" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <script type="application/ld+json" set:html={JSON.stringify(structuredData)} />
 
     {textures.map((href) => <link rel="preload" as="image" type="image/avif" href={href} />)}
     <link rel="preload" as="image" href="/pizza/env.webp" />
@@ -113,6 +164,16 @@ const {
 
   * {
     box-sizing: border-box;
+  }
+
+  /* Read by screen readers and search engines, kept off screen so the pizza has the page to itself. */
+  .visually-hidden {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
   }
 
   body {
