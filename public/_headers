@@ -1,0 +1,9 @@
+# Built files carry a hash of their contents in their name, so they never change.
+/_astro/*
+  Cache-Control: public, max-age=31536000, immutable
+
+# The pizza's pictures keep their names: reuse them for a day, and refresh them in the background for a week.
+/pizza/toppings/*
+  Cache-Control: public, max-age=86400, stale-while-revalidate=604800
+/pizza/env.png
+  Cache-Control: public, max-age=86400, stale-while-revalidate=604800

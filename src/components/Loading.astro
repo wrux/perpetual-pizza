@@ -3,26 +3,24 @@ import Logo from './Logo.astro';
 ---
 
 <div id="loading" class="loading" role="status" aria-live="polite">
-  <span class="loading__pizza"><Logo /></span>
-  <div class="loading__bar" aria-hidden="true"><div class="loading__fill" data-bar></div></div>
-  <p class="loading__caption" data-caption>Preheating the oven</p>
+  <Logo />
+  <div aria-hidden="true"><div data-bar></div></div>
+  <p data-caption>Preheating the oven</p>
 </div>
 
-<style>
+<style is:global>
   .loading {
     position: fixed;
     inset: 0;
     z-index: 20;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
+    display: grid;
+    place-content: center;
+    justify-items: center;
     gap: 1.25rem;
     background: #140802;
-    color: #fff;
     transition:
-      opacity 500ms ease,
-      visibility 0s linear 500ms;
+      opacity 0.5s,
+      visibility 0s 0.5s;
   }
 
   .loading.done {
@@ -31,57 +29,44 @@ import Logo from './Logo.astro';
     pointer-events: none;
   }
 
-  .loading__pizza {
-    display: block;
+  /* A transform animation keeps running on the compositor while the main thread paints textures. */
+  .loading svg {
     width: 3.5rem;
-    height: 3.5rem;
-    /* A transform animation keeps running on the compositor while the main thread paints textures. */
-    animation: loading-breathe 1.6s ease-in-out infinite;
+    animation: breathe 1.6s ease-in-out infinite;
   }
 
-  .loading__pizza :global(svg) {
-    display: block;
-    width: 100%;
-    height: 100%;
-  }
-
-  .loading__bar {
+  /* The progress bar, and the fill inside it. */
+  .loading div {
     width: 9rem;
     height: 2px;
     border-radius: 1px;
-    background: rgba(255, 255, 255, 0.15);
+    background: #fff2;
     overflow: hidden;
   }
 
-  .loading__fill {
-    width: 100%;
-    height: 100%;
+  .loading div div {
     background: #fff;
     transform: scaleX(0);
     transform-origin: left;
-    transition: transform 300ms ease;
+    transition: transform 0.3s;
   }
 
-  .loading__caption {
+  .loading p {
     margin: 0;
     font-size: 0.8rem;
     font-weight: 500;
     letter-spacing: 0.02em;
-    color: rgba(255, 255, 255, 0.55);
+    color: #fff9;
   }
 
-  @keyframes loading-breathe {
-    0%,
-    100% {
-      transform: scale(1);
-    }
+  @keyframes breathe {
     50% {
       transform: scale(1.08);
     }
   }
 
   @media (prefers-reduced-motion: reduce) {
-    .loading__pizza {
+    .loading svg {
       animation: none;
     }
   }

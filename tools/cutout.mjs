@@ -27,6 +27,8 @@ const REACH = 1.6; // that square spans this many radii from the centre
 const TILE = 512; // atlas tile size
 const FILL = 0.46; // a cut-out's widest point sits this far from its tile centre
 const RAYS = 64;
+/** How the textures are stored: AVIF is about half the size of WebP at the same quality. */
+const AVIF = { quality: 50, effort: 6 };
 const debug = process.argv.includes('--debug');
 
 const median = (values) => {
@@ -266,7 +268,23 @@ async function cut(entry) {
     const i = Math.floor(f);
     return ring[i % RAYS] + (ring[(i + 1) % RAYS] - ring[i % RAYS]) * (f - i);
   };
-  // Outside the outline, repeat the colour at the edge so filtering never drags in the background.
+  // Outside the outline, repeat the colour at the edge so filtering never drags
+  // in the background. Further out than filtering reaches, fill with the
+  // topping's average colour instead: flat colour costs almost nothing to store.
+  const MARGIN = 0.03;
+  const mean = [0, 0, 0];
+  let counted = 0;
+  for (let y = 0; y < TILE; y += 2) {
+    for (let x = 0; x < TILE; x += 2) {
+      const ux = x / TILE - 0.5;
+      const uy = y / TILE - 0.5;
+      const d = Math.hypot(ux, uy);
+      const a = Math.atan2(uy, ux);
+      if (d > ringAt(outerT, a) || (innerT && d < ringAt(innerT, a))) continue;
+      for (let c = 0; c < 3; c++) mean[c] += tile[(y * TILE + x) * 3 + c];
+      counted++;
+    }
+  }
   const out = Buffer.alloc(TILE * TILE * 3);
   for (let y = 0; y < TILE; y++) {
     for (let x = 0; x < TILE; x++) {
@@ -275,11 +293,22 @@ async function cut(entry) {
       const d = Math.hypot(ux, uy);
       const a = Math.atan2(uy, ux);
       let sample = d;
+      let far = false;
       const max = ringAt(outerT, a) - 0.004;
-      if (d > max) sample = max;
+      if (d > max) {
+        sample = max;
+        far = d > max + MARGIN;
+      }
       if (innerT) {
         const min = ringAt(innerT, a) + 0.004;
-        if (d < min) sample = min;
+        if (d < min) {
+          sample = min;
+          far = d < min - MARGIN;
+        }
+      }
+      if (far) {
+        for (let c = 0; c < 3; c++) out[(y * TILE + x) * 3 + c] = mean[c] / counted;
+        continue;
       }
       const sx = Math.min(Math.max(Math.round((0.5 + Math.cos(a) * sample) * TILE), 0), TILE - 1);
       const sy = Math.min(Math.max(Math.round((0.5 + Math.sin(a) * sample) * TILE), 0), TILE - 1);
@@ -323,8 +352,8 @@ for (const [kind, entries] of Object.entries(config.toppings)) {
   const atlas = sharp({ create: { width: TILE * cuts.length, height: TILE, channels: 3, background: '#000' } }).composite(
     cuts.map((c, i) => ({ input: c.pixels, raw: { width: TILE, height: TILE, channels: 3 }, left: i * TILE, top: 0 })),
   );
-  await atlas.webp({ quality: 88 }).toFile(path.join(ROOT, `public/pizza/toppings/${kind}.webp`));
-  manifest[kind] = { file: `/pizza/toppings/${kind}.webp`, cutouts: cuts.map((c) => ({ outer: c.outer, inner: c.inner })) };
+  await atlas.avif(AVIF).toFile(path.join(ROOT, `public/pizza/toppings/${kind}.avif`));
+  manifest[kind] = { file: `/pizza/toppings/${kind}.avif`, cutouts: cuts.map((c) => ({ outer: c.outer, inner: c.inner })) };
   if (debug) {
     const strip = sharp({ create: { width: TILE * cuts.length, height: TILE, channels: 3, background: '#000' } }).composite(
       cuts.map((c, i) => ({ input: c.preview, left: i * TILE, top: 0 })),
@@ -391,7 +420,7 @@ if (config.base) {
       }
     }
   }
-  await sharp(out, { raw: { width: W, height: H, channels: 3 } }).webp({ quality: 88 }).toFile(path.join(ROOT, 'public/pizza/toppings/crust.webp'));
+  await sharp(out, { raw: { width: W, height: H, channels: 3 } }).avif(AVIF).toFile(path.join(ROOT, 'public/pizza/toppings/crust.avif'));
   if (debug) {
     await sharp(out, { raw: { width: W, height: H, channels: 3 } }).extract({ left: 0, top: 0, width: W, height: H / 2 }).png().toFile(path.join(ROOT, 'tools/debug/crust.png'));
   }
@@ -402,17 +431,17 @@ if (config.base) {
 // surface: "cheeseDetail": { src, left, top, size } is a square of photo pixels.
 if (config.cheeseDetail) {
   const { src, left, top, size } = config.cheeseDetail;
-  const DETAIL = 2048;
+  const DETAIL = 1024;
   const detail = await region(src, left, top, size, size, DETAIL);
-  await sharp(detail, { raw: { width: DETAIL, height: DETAIL, channels: 3 } }).webp({ quality: 88 }).toFile(path.join(ROOT, 'public/pizza/toppings/cheese-detail.webp'));
+  await sharp(detail, { raw: { width: DETAIL, height: DETAIL, channels: 3 } }).avif(AVIF).toFile(path.join(ROOT, 'public/pizza/toppings/cheese-detail.avif'));
   console.log('cheese detail: cropped');
 }
 
 await writeFile(
   path.join(ROOT, 'src/scripts/topping-photos.json'),
   JSON.stringify({
-    crust: config.base ? '/pizza/toppings/crust.webp' : null,
-    cheeseDetail: config.cheeseDetail ? '/pizza/toppings/cheese-detail.webp' : null,
+    crust: config.base ? '/pizza/toppings/crust.avif' : null,
+    cheeseDetail: config.cheeseDetail ? '/pizza/toppings/cheese-detail.avif' : null,
     toppings: manifest,
   }) + '\n',
 );

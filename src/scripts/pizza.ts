@@ -1352,8 +1352,10 @@ export async function createPizza(
     samples = built.samples;
   }
 
+  // Start the downloads first, so they arrive while the base is being painted.
+  const loading = Promise.all([loadPhotos(gl), loadBasePhotos(gl), loadImage('/pizza/env.png')]);
   await prepaint(config.seed, onProgress);
-  const [photos, base, studio] = await Promise.all([loadPhotos(gl), loadBasePhotos(gl), loadImage('/pizza/env.png')]);
+  const [photos, base, studio] = await loading;
   renderer.setEnvironment(studio);
   rebuild();
 

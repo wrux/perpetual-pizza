@@ -3,6 +3,9 @@
  * matrices, triangle meshes, textures, render targets and full-screen passes.
  */
 
+import SCREEN_FRAGMENT from '../shaders/screen.frag.glsl';
+import SCREEN_VERTEX from '../shaders/screen.vert.glsl';
+
 export type GL = WebGL2RenderingContext;
 export type Vec3 = [number, number, number];
 /** A 4x4 matrix in column-major order, as GL wants it. */
@@ -294,6 +297,22 @@ export function disc(radius: number, segments: number) {
 }
 
 /* ------------------------------------------------------------------ */
+/* Shaders                                                             */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Finish a shader from its file. Values worked out in script go in as
+ * `#define`s, after the `#version` line if there is one, and each
+ * `#include <name>` line is replaced by the chunk of that name.
+ */
+export function glsl(source: string, defines: Record<string, string | number> = {}, chunks: Record<string, string> = {}): string {
+  const lines = Object.entries(defines).map(([name, value]) => `#define ${name} ${value}\n`).join('');
+  const versioned = source.startsWith('#version');
+  const at = versioned ? source.indexOf('\n') + 1 : 0;
+  return (source.slice(0, at) + lines + source.slice(at)).replace(/#include <(\w+)>/g, (_, name) => chunks[name]);
+}
+
+/* ------------------------------------------------------------------ */
 /* Programs                                                            */
 /* ------------------------------------------------------------------ */
 
@@ -473,26 +492,9 @@ export function resolveTarget(gl: GL, target: Target | null) {
 /* Full-screen passes                                                  */
 /* ------------------------------------------------------------------ */
 
-/** One triangle that covers the screen, with uv 0..1 across the visible part. */
-export const SCREEN_VERTEX = /* glsl */ `#version 300 es
-out vec2 vUv;
-void main() {
-  vUv = vec2( ( gl_VertexID << 1 ) & 2, gl_VertexID & 2 );
-  gl_Position = vec4( vUv * 2.0 - 1.0, 0.0, 1.0 );
-}`;
-
-/** Opening lines that let a fragment shader written for WebGL1 run as is. */
-export const SCREEN_FRAGMENT = /* glsl */ `#version 300 es
-precision highp float;
-#define varying in
-#define texture2D texture
-#define gl_FragColor fragColor
-out vec4 fragColor;
-`;
-
 type UniformValue = number | number[] | WebGLTexture;
 
-/** A shader that fills its target from other pictures. */
+/** A shader that fills its target from other pictures. Its source is the body of a fragment shader in WebGL1 style. */
 export interface ScreenPass {
   /** Run the pass into `target`. Textures are bound in the order they are listed. */
   draw(target: Target | null, uniforms: Record<string, UniformValue>): void;
@@ -500,7 +502,7 @@ export interface ScreenPass {
 }
 
 export function createScreenPass(gl: GL, fragmentBody: string): ScreenPass {
-  const program = createProgram(gl, SCREEN_VERTEX, SCREEN_FRAGMENT + fragmentBody);
+  const program = createProgram(gl, SCREEN_VERTEX, `${SCREEN_FRAGMENT}\n${fragmentBody}`);
   return {
     draw(target, uniforms) {
       bindTarget(gl, target);
@@ -525,9 +527,3 @@ export function createScreenPass(gl: GL, fragmentBody: string): ScreenPass {
     dispose: () => gl.deleteProgram(program.handle),
   };
 }
-
-/** Copies a picture unchanged. */
-export const COPY_FRAGMENT = /* glsl */ `
-uniform sampler2D tDiffuse;
-varying vec2 vUv;
-void main() { gl_FragColor = texture2D( tDiffuse, vUv ); }`;

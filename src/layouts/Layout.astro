@@ -1,4 +1,7 @@
 ---
+import LogoSprite from '../components/LogoSprite.astro';
+import photos from '../scripts/topping-photos.json';
+
 export interface Props {
   cover?: string;
   description?: string;
@@ -11,6 +14,9 @@ const defaultDescription =
   'Watch the never ending digital pizza spin hypnotize you into ordering a pizza.';
 const siteUrl = 'https://perpetual.pizza';
 const currentPath = Astro.url.pathname;
+
+// Every picture the pizza is built from, so the browser can fetch them while the script is still on its way.
+const textures = [photos.crust, photos.cheeseDetail, ...Object.values(photos.toppings).map((sheet) => sheet.file)].filter(Boolean);
 
 const {
   cover = defaultCover,
@@ -48,8 +54,12 @@ const {
     <meta property="og:description" content={description} />
     <meta property="og:url" content={`${siteUrl}${currentPath}`} />
     <meta property="og:image" content={cover} />
+
+    {textures.map((href) => <link rel="preload" as="image" type="image/avif" href={href} />)}
+    <link rel="preload" as="image" href="/pizza/env.png" />
   </head>
   <body>
+    <LogoSprite />
     <slot />
   </body>
 </html>
@@ -90,7 +100,13 @@ const {
 
 <style is:global>
   :root {
-    --primary: 208, 0, 0;
+    --primary: #d00000;
+    /* Whites of three strengths: quiet text, a faint fill, and a stronger fill or hairline. */
+    --dim: #fffa;
+    --tint: #ffffff12;
+    --tint-2: #ffffff24;
+    --edge: #ffffff1f;
+    --ease: cubic-bezier(0.2, 0.8, 0.2, 1);
   }
 
   * {
@@ -98,29 +114,14 @@ const {
   }
 
   body {
+    width: 100vw;
     height: 100vh;
     height: 100dvh;
-    width: 100vw;
     overflow: hidden;
     margin: 0;
-    font:
-      1em/1.6 system-ui,
-      -apple-system,
-      BlinkMacSystemFont,
-      Segoe UI,
-      Roboto,
-      Oxygen,
-      Ubuntu,
-      Cantarell,
-      Droid Sans,
-      Helvetica Neue,
-      Fira Sans,
-      sans-serif;
-    font-weight: 400;
-    font-style: normal;
-    text-rendering: optimizeLegibility;
-    -webkit-font-smoothing: antialiased;
-    background-color: #140802;
+    background: #140802;
     color: #fff;
+    font: 1em/1.6 system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased;
   }
 </style>

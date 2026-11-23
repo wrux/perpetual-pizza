@@ -260,7 +260,7 @@ export function initPanel(pizza: PizzaController) {
   /* Tabs: all focusable, arrows move between them, the dock animates to the new height. */
   const tabButtons = Array.from(panel.querySelectorAll<HTMLButtonElement>('[role="tab"][data-tab]'));
   const panes = Array.from(panel.querySelectorAll<HTMLElement>('[data-pane]'));
-  const paneHost = panel.querySelector<HTMLElement>('.dock__panes');
+  const paneHost = panel.querySelector<HTMLElement>('form');
   let heightTimer = 0;
   const selectTab = (id: string, focus = false) => {
     const before = paneHost?.offsetHeight ?? 0;
@@ -318,7 +318,7 @@ export function initPanel(pizza: PizzaController) {
 
   /* Swipe the sheet down to dismiss it on phones. */
   const phone = window.matchMedia('(max-width: 640px)');
-  const grip = Array.from(panel.querySelectorAll<HTMLElement>('.dock__grip, .dock__header, .dock__tabs'));
+  const grip = Array.from(panel.querySelectorAll<HTMLElement>('header'));
   let dragStart: number | null = null;
   let dragY = 0;
   let dragT = 0;
@@ -358,9 +358,7 @@ export function initPanel(pizza: PizzaController) {
     const previews = await pizza.renderPreviews(96);
     for (const [effect, url] of Object.entries(previews.looks)) {
       const el = panel.querySelector<HTMLElement>(`[data-look-preview="${effect}"]`);
-      if (!el) continue;
-      el.style.setProperty('--preview', `url(${url})`);
-      el.classList.add('has-preview');
+      el?.style.setProperty('--preview', `url(${url})`);
     }
     for (const [kind, url] of Object.entries(previews.toppings)) {
       panel.querySelector<HTMLElement>(`[data-topping-preview="${kind}"]`)?.style.setProperty('--preview', `url(${url})`);
